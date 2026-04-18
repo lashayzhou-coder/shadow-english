@@ -68,23 +68,41 @@
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* 单词释义 */
-.word-definition {
-  color: #333;
+/* 中文翻译 */
+.word-translation {
+  color: #10b981;
+  font-weight: 500;
   line-height: 1.5;
 }
 
-/* 单词例句 */
-.word-examples {
+/* 单词释义 */
+.word-definitions {
   border-top: 1px solid #e2e8f0;
   padding-top: 0.5rem;
+}
+
+.meaning {
+  margin-bottom: 0.75rem;
+}
+
+.part-of-speech {
+  color: #6366f1;
+  font-weight: 600;
+  font-size: 0.8rem;
+  margin-bottom: 0.25rem;
+}
+
+.definition {
+  color: #333;
+  line-height: 1.5;
+  margin-bottom: 0.25rem;
 }
 
 .example {
   font-size: 0.8rem;
   color: #6c757d;
   font-style: italic;
-  margin-bottom: 0.25rem;
+  margin-left: 0.5rem;
 }
 
 /* 单词操作按钮 */

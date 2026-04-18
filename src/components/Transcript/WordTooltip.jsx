@@ -33,17 +33,29 @@ const WordTooltip = ({ word, definition, isLoading, position, onClose }) => {
             )}
           </div>
 
-          {/* 释义 */}
-          <div className="word-definition">
-            {definition.definition}
-          </div>
+          {/* 中文翻译 */}
+          {definition.translation && (
+            <div className="word-translation">
+              {definition.translation}
+            </div>
+          )}
 
-          {/* 例句 */}
-          {definition.examples && definition.examples.length > 0 && (
-            <div className="word-examples">
-              {definition.examples.slice(0, 2).map((example, index) => (
-                <div key={index} className="example">
-                  {example}
+          {/* 释义 */}
+          {definition.definitions && definition.definitions.length > 0 && (
+            <div className="word-definitions">
+              {definition.definitions.slice(0, 2).map((meaning, index) => (
+                <div key={index} className="meaning">
+                  <div className="part-of-speech">{meaning.partOfSpeech}</div>
+                  {meaning.definitions.slice(0, 2).map((def, idx) => (
+                    <div key={idx} className="definition">
+                      • {def.definition}
+                      {def.example && (
+                        <div className="example">
+                          "{def.example}"
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
@@ -60,15 +72,18 @@ const WordTooltip = ({ word, definition, isLoading, position, onClose }) => {
             >
               添加到生词本
             </button>
-            <button
-              onClick={() => {
-                // 播放发音功能
-                alert(`播放 "${word}" 的发音`)
-              }}
-              className="action-button"
-            >
-              播放发音
-            </button>
+            {definition.audioUrl && (
+              <button
+                onClick={() => {
+                  // 播放发音功能
+                  const audio = new Audio(definition.audioUrl)
+                  audio.play().catch(error => console.error('播放音频失败:', error))
+                }}
+                className="action-button"
+              >
+                播放发音
+              </button>
+            )}
           </div>
         </div>
       )}
