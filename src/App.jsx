@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import AudioPlayer from './components/AudioPlayer'
 import Transcript from './components/Transcript'
 import WordCard from './components/WordCard'
+import Settings from './components/Settings'
 import './App.css'
 
 function App() {
@@ -117,14 +118,7 @@ function App() {
         {activeTab === 'settings' && (
           <div className="mb-8">
             <h2 className="text-xl font-semibold mb-4">⚙️ 设置</h2>
-            <div className="bg-gray-100 dark:bg-gray-800 p-8 rounded-lg text-center">
-              <p className="text-gray-600 dark:text-gray-400">
-                设置页面即将推出！
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
-                自定义播放速度、翻译选项等
-              </p>
-            </div>
+            <Settings />
           </div>
         )}
       </main>

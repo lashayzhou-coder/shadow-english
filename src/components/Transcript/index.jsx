@@ -65,7 +65,11 @@ const Transcript = ({
 
   // 自动获取字幕（当音频源变化时）
   useEffect(() => {
-    if (audioSource && sourceType === 'url') {
+    // 检查自动生成字幕的设置
+    const autoGenerate = localStorage.getItem('auto_generate_transcript') === 'true'
+    const autoTranslate = localStorage.getItem('auto_translate') === 'true'
+
+    if (audioSource && sourceType === 'url' && autoGenerate) {
       const loadTranscript = async () => {
         setIsLoading(true)
         setError('')
@@ -91,6 +95,11 @@ const Transcript = ({
             setTranscriptText(text)
             parseText(text)
             setTextSource(source)
+
+            // 自动翻译（如果设置开启）
+            if (autoTranslate) {
+              await loadTranslations()
+            }
           } else {
             setTextSource(null)
           }
