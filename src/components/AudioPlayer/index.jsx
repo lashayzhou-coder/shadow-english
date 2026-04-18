@@ -846,19 +846,6 @@ const AudioPlayer = () => {
         </div>
       )}
 
-      {/* 快捷键提示 */}
-      <div className="keyboard-hints bg-gray-100 dark:bg-gray-700 rounded-lg p-3 text-sm text-gray-600 dark:text-gray-400">
-        <p><strong>快捷键：</strong></p>
-        <ul className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
-          <li>空格键：播放/暂停</li>
-          <li>←/→：快退/快进 5 秒</li>
-          <li>A 键：设置 A 点</li>
-          <li>B 键：设置 B 点</li>
-          <li>C 键：清除 AB 点</li>
-          <li>Enter 键：在输入框中加载</li>
-        </ul>
-      </div>
-
       {/* 支持的链接类型提示 */}
       <div className="optimization-hints bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md mt-4">
         <p><strong>✅ 支持的媒体类型：</strong></p>
