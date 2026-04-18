@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import './Settings.css'
 import { setApiKey, hasApiKey } from '../../services/WhisperApi'
+import { setGeminiApiKey, getGeminiApiKey, hasGeminiApiKey } from '../../services/GeminiApi'
 
 const Settings = () => {
   const [openaiApiKey, setOpenaiApiKey] = useState('')
+  const [geminiApiKey, setGeminiApiKeyState] = useState('')
   const [autoGenerateTranscript, setAutoGenerateTranscript] = useState(false)
   const [autoTranslate, setAutoTranslate] = useState(false)
   const [saveMessage, setSaveMessage] = useState('')
@@ -11,10 +13,12 @@ const Settings = () => {
   // 加载设置
   useEffect(() => {
     const savedApiKey = localStorage.getItem('openai_api_key') || ''
+    const savedGeminiKey = localStorage.getItem('gemini_api_key') || 'AIzaSyDAuZjMzw0OP7GMKQqsK6-NWjeohi-ohFU'
     const savedAutoTranscript = localStorage.getItem('auto_generate_transcript') === 'true'
     const savedAutoTranslate = localStorage.getItem('auto_translate') === 'true'
 
     setOpenaiApiKey(savedApiKey)
+    setGeminiApiKeyState(savedGeminiKey)
     setAutoGenerateTranscript(savedAutoTranscript)
     setAutoTranslate(savedAutoTranslate)
   }, [])
@@ -22,24 +26,30 @@ const Settings = () => {
   // 保存设置
   const saveSettings = useCallback(() => {
     localStorage.setItem('openai_api_key', openaiApiKey)
+    localStorage.setItem('gemini_api_key', geminiApiKey)
     localStorage.setItem('auto_generate_transcript', autoGenerateTranscript)
     localStorage.setItem('auto_translate', autoTranslate)
 
     if (openaiApiKey) {
       setApiKey(openaiApiKey)
     }
+    if (geminiApiKey) {
+      setGeminiApiKey(geminiApiKey)
+    }
 
     setSaveMessage('设置已保存！')
     setTimeout(() => setSaveMessage(''), 3000)
-  }, [openaiApiKey, autoGenerateTranscript, autoTranslate])
+  }, [openaiApiKey, geminiApiKey, autoGenerateTranscript, autoTranslate])
 
   // 重置设置
   const resetSettings = useCallback(() => {
     if (confirm('确定要重置所有设置吗？')) {
       setOpenaiApiKey('')
+      setGeminiApiKeyState('AIzaSyDAuZjMzw0OP7GMKQqsK6-NWjeohi-ohFU')
       setAutoGenerateTranscript(false)
       setAutoTranslate(false)
       localStorage.removeItem('openai_api_key')
+      localStorage.removeItem('gemini_api_key')
       localStorage.removeItem('auto_generate_transcript')
       localStorage.removeItem('auto_translate')
       setSaveMessage('设置已重置！')
@@ -71,6 +81,29 @@ const Settings = () => {
               className="hint-link"
             >
               platform.openai.com/api-keys
+            </a>
+          </p>
+        </div>
+        <div className="setting-item">
+          <label className="setting-label">
+            Gemini API Key
+          </label>
+          <input
+            type="password"
+            value={geminiApiKey}
+            onChange={(e) => setGeminiApiKeyState(e.target.value)}
+            placeholder="请输入您的 Gemini API Key"
+            className="setting-input"
+          />
+          <p className="setting-hint">
+            用于翻译功能。获取 API Key：
+            <a
+              href="https://aistudio.google.com/app/apikey"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hint-link"
+            >
+              aistudio.google.com/app/apikey
             </a>
           </p>
         </div>

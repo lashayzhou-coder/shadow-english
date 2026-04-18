@@ -1,17 +1,13 @@
 // 翻译 API 服务
-// 使用 MyMemory 免费翻译 API
+// 使用 Gemini API
 
-const BASE_URL = "https://api.mymemory.translated.net/get"
+import { translateWithGemini } from './GeminiApi'
 
 // 简单的文本翻译
 export const translateText = async (text, from = 'en', to = 'zh-CN') => {
   try {
-    const response = await fetch(`${BASE_URL}?q=${encodeURIComponent(text)}&langpair=${from}|${to}`)
-    if (!response.ok) {
-      throw new Error('Translation API error')
-    }
-    const data = await response.json()
-    return data.responseData?.translatedText || null
+    const translation = await translateWithGemini(text, from, to)
+    return translation || null
   } catch (error) {
     console.error('Translation API error:', error)
     return null
