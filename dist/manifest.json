@@ -1,0 +1,45 @@
+{
+  "name": "ShadowEnglish",
+  "short_name": "影子英语",
+  "description": "英语听说影子训练工具",
+  "theme_color": "#4F46E5",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "开始听写",
+      "short_name": "听写",
+      "description": "快速进入听写模式",
+      "url": "/?mode=dictation",
+      "icons": [{ "src": "icons/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "打开生词本",
+      "short_name": "生词本",
+      "description": "快速打开生词本",
+      "url": "/?mode=vocab",
+      "icons": [{ "src": "icons/icon-192x192.png", "sizes": "192x192" }]
+    }
+  ]
+}

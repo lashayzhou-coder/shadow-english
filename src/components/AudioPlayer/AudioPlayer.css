@@ -1,0 +1,129 @@
+/* AudioPlayer specific styles */
+
+/* Audio source input styles */
+.audio-source-inputs input[type="text"],
+.audio-source-inputs input[type="file"] {
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+}
+
+/* Progress bar with AB repeat visualization */
+.player-controls .progress-bar {
+  width: 100%;
+  height: 12px;
+  background-color: #E5E7EB;
+  border-radius: 9999px;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+}
+
+.player-controls .progress-fill {
+  height: 100%;
+  background-color: #4F46E5;
+  transition: width 0.1s linear;
+}
+
+.player-controls .ab-highlight {
+  position: absolute;
+  height: 100%;
+  background-color: rgba(245, 158, 11, 0.3);
+  pointer-events: none;
+}
+
+/* Control buttons */
+.player-controls .btn {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.player-controls .btn-primary {
+  background-color: #4F46E5;
+  color: white;
+}
+
+.player-controls .btn-primary:hover {
+  background-color: #4338CA;
+}
+
+.player-controls .btn-secondary {
+  background-color: #F59E0B;
+  color: white;
+}
+
+.player-controls .btn-secondary:hover {
+  background-color: #D97706;
+}
+
+/* Speed control buttons */
+.player-controls .speed-control button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+}
+
+/* Keyboard hints */
+.keyboard-hints {
+  line-height: 1.5;
+}
+
+.keyboard-hints ul {
+  list-style-type: none;
+  padding-left: 0;
+}
+
+/* Responsive adjustments for mobile */
+@media (max-width: 768px) {
+  .player-controls {
+    padding: 1rem;
+  }
+
+  .main-controls {
+    gap: 0.5rem;
+  }
+
+  .btn {
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0.5rem;
+  }
+
+  .speed-control button {
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0.25rem 0.5rem;
+  }
+}
+
+/* Responsive adjustments for tablets */
+@media (min-width: 768px) {
+  .player-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .main-controls {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+  }
+
+  .volume-control,
+  .speed-control {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .volume-control input[type="range"],
+  .speed-control {
+    flex: 1;
+  }
+}

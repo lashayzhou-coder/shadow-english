@@ -1,0 +1,69 @@
+/* App specific styles */
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+/* Button base styles for mobile */
+.btn {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background-color: #4F46E5;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #4338CA;
+}
+
+.btn-secondary {
+  background-color: #F59E0B;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background-color: #D97706;
+}
+
+/* Progress bar styles */
+.progress-bar {
+  width: 100%;
+  height: 12px;
+  background-color: #E5E7EB;
+  border-radius: 9999px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: #4F46E5;
+  transition: width 0.1s linear;
+}
+
+/* AB repeat highlight */
+.ab-highlight {
+  position: absolute;
+  height: 100%;
+  background-color: rgba(245, 158, 11, 0.3);
+  pointer-events: none;
+}
+
+/* Waveform visualization */
+.waveform-container {
+  width: 100%;
+  height: 80px;
+  background-color: #F3F4F6;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
