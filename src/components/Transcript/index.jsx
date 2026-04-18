@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import './Transcript.css'
 import Sentence from './Sentence'
+import WordCard from '../WordCard'
 import {
   splitIntoSentences,
   estimateTimestamps,
@@ -28,6 +29,7 @@ const Transcript = ({
   const [textSource, setTextSource] = useState(null) // 'rss' | 'whisper' | 'manual'
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [selectedWord, setSelectedWord] = useState(null)
 
   // 文本输入 ref
   const textAreaRef = useRef(null)
@@ -183,6 +185,20 @@ This is a great tool for English learning.`
     setShowTranslation(true)
   }, [sentences, getSentenceTranslation])
 
+  // 处理单词点击
+  const handleWordClick = useCallback((word) => {
+    setSelectedWord(word)
+    // 同时也调用父组件的 onWordClick（如果有）
+    if (onWordClick) {
+      onWordClick(word)
+    }
+  }, [onWordClick])
+
+  // 关闭单词卡片
+  const closeWordCard = useCallback(() => {
+    setSelectedWord(null)
+  }, [])
+
   return (
     <div className="transcript-container">
       {/* 字幕输入和控制 */}
@@ -306,7 +322,7 @@ This is a great tool for English learning.`
                 isCurrent={isCurrent}
                 isTranslated={showTranslation}
                 translation={translations[index]}
-                onWordClick={onWordClick}
+                onWordClick={handleWordClick}
                 startTime={timestamp?.start}
                 endTime={timestamp?.end}
                 index={index}
@@ -336,6 +352,18 @@ This is a great tool for English learning.`
             💡 <strong>提示：</strong>播放时字幕会自动高亮
           </p>
         </div>
+      )}
+
+      {/* 单词详情卡片 */}
+      {selectedWord && (
+        <WordCard
+          word={selectedWord}
+          onClose={closeWordCard}
+          onAddToWordBook={(word, data) => {
+            // 这里可以添加到生词本的逻辑
+            console.log('添加到生词本:', word, data)
+          }}
+        />
       )}
     </div>
   )
