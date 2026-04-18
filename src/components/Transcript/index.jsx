@@ -6,8 +6,17 @@ import {
   estimateTimestamps,
   findCurrentSentenceIndex
 } from './TextParser'
+import { getTranscriptFromPodcast, isRssUrl, isPodcastUrl } from '../../services/RssParser'
+import { hasApiKey, mockTranscribe } from '../../services/WhisperApi'
+import { parseSubtitles } from '../../services/SubtitleParser'
 
-const Transcript = ({ currentTime, duration, onWordClick }) => {
+const Transcript = ({
+  currentTime,
+  duration,
+  onWordClick,
+  audioSource,
+  sourceType
+}) => {
   const [transcriptText, setTranscriptText] = useState('')
   const [sentences, setSentences] = useState([])
   const [timestamps, setTimestamps] = useState([])
@@ -15,6 +24,9 @@ const Transcript = ({ currentTime, duration, onWordClick }) => {
   const [isEditing, setIsEditing] = useState(false)
   const [showTranslation, setShowTranslation] = useState(false)
   const [translations, setTranslations] = useState([])
+  const [textSource, setTextSource] = useState(null) // 'rss' | 'whisper' | 'manual'
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
 
   // 文本输入 ref
   const textAreaRef = useRef(null)
@@ -48,11 +60,69 @@ const Transcript = ({ currentTime, duration, onWordClick }) => {
     }
   }, [currentTime, timestamps])
 
+  // 自动获取字幕（当音频源变化时）
+  useEffect(() => {
+    if (audioSource && sourceType === 'url') {
+      const loadTranscript = async () => {
+        setIsLoading(true)
+        setError('')
+
+        try {
+          // 文本来源优先级：RSS/播客 > Whisper > 手动
+          let text = null
+          let source = null
+
+          // 1. 尝试从播客 RSS 或页面获取字幕
+          if (isRssUrl(audioSource) || isPodcastUrl(audioSource)) {
+            text = await getTranscriptFromPodcast(audioSource)
+            source = 'rss'
+          }
+
+          // 2. 尝试使用 Whisper 转录（如果有 API Key）
+          if (!text && hasApiKey()) {
+            text = await getWhisperTranscription()
+            source = 'whisper'
+          }
+
+          if (text) {
+            setTranscriptText(text)
+            parseText(text)
+            setTextSource(source)
+          } else {
+            setTextSource(null)
+          }
+        } catch (error) {
+          console.error('自动获取字幕失败:', error)
+          setError('无法自动获取字幕，请手动输入')
+        } finally {
+          setIsLoading(false)
+        }
+      }
+
+      loadTranscript()
+    }
+  }, [audioSource, sourceType, parseText])
+
+  // 获取 Whisper 转录（目前使用模拟）
+  const getWhisperTranscription = async () => {
+    try {
+      const result = await mockTranscribe(duration || 30)
+      setSentences(result.sentences)
+      setTimestamps(result.sentences.map(s => ({ start: s.start, end: s.end })))
+      setTranscriptText(result.text)
+      return result.text
+    } catch (error) {
+      console.error('Whisper 转录失败:', error)
+      return null
+    }
+  }
+
   // 处理文本提交
   const handleTextSubmit = useCallback(() => {
     const text = textAreaRef.current?.value || ''
     if (text.trim()) {
       parseText(text)
+      setTextSource('manual')
     }
     setIsEditing(false)
   }, [parseText])
@@ -79,6 +149,7 @@ This is a great tool for English learning.`
     setTranslations([])
     setCurrentSentenceIndex(0)
     setIsEditing(false)
+    setTextSource(null)
   }, [])
 
   // 格式化时间
@@ -130,12 +201,18 @@ This is a great tool for English learning.`
       <div className="transcript-controls mb-4">
         <div className="flex gap-2">
           {!isEditing && transcriptText === '' && (
-            <button
-              onClick={() => setIsEditing(true)}
-              className="btn btn-primary"
-            >
-              粘贴字幕
-            </button>
+            <>
+              {isLoading ? (
+                <span className="loading-text">正在自动获取字幕...</span>
+              ) : (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="btn btn-primary"
+                >
+                  粘贴字幕
+                </button>
+              )}
+            </>
           )}
 
           {isEditing && (
@@ -198,6 +275,20 @@ This is a great tool for English learning.`
         </div>
       )}
 
+      {/* 文本来源说明 */}
+      {textSource && transcriptText && (
+        <div className="text-source-indicator mb-4">
+          字幕来源: {textSource === 'rss' && 'RSS 订阅'}{textSource === 'whisper' && 'Whisper 转录'}{textSource === 'manual' && '手动输入'}
+        </div>
+      )}
+
+      {/* 错误提示 */}
+      {error && (
+        <div className="error-message mb-4">
+          {error}
+        </div>
+      )}
+
       {/* 翻译控制 */}
       {!isEditing && sentences.length > 0 && (
         <div className="translation-controls mb-4">
@@ -238,11 +329,15 @@ This is a great tool for English learning.`
       )}
 
       {/* 字幕为空时的提示 */}
-      {!isEditing && sentences.length === 0 && transcriptText === '' && (
+      {!isEditing && sentences.length === 0 && transcriptText === '' && !isLoading && (
         <div className="transcript-empty">
           <div className="empty-icon">📄</div>
           <h3>暂无字幕</h3>
-          <p>点击"粘贴字幕"添加字幕文本</p>
+          {!hasApiKey() ? (
+            <p>请在设置中配置 OpenAI API Key 以启用自动转录功能</p>
+          ) : (
+            <p>点击"粘贴字幕"添加字幕文本</p>
+          )}
         </div>
       )}
 

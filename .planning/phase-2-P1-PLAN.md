@@ -23,12 +23,15 @@ phase: 2
 
 #### 2.1.1 文本解析
 ```
-- 需求：支持逐句显示和高亮
-- 实现：创建 Transcript 组件，接收字幕文本并按句分割
+- 需求：支持逐句显示和高亮，根据文本来源优先级获取字幕
+- 实现：创建 Transcript 组件，实现三级文本来源策略
 - 架构：
   - Transcript.tsx - 主组件
   - TextParser.js - 文本解析工具
   - Sentence.tsx - 单句组件
+  - RssParser.js - RSS/播客解析器
+  - WhisperApi.js - Whisper 转录服务
+  - SubtitleParser.js - SRT/VTT 解析
 ```
 
 #### 2.1.2 高亮功能

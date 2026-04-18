@@ -82,6 +82,36 @@
   padding-left: 1.5rem;
 }
 
+/* 文本来源指示 */
+.text-source-indicator {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background-color: #e7f3ff;
+  color: #0066cc;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+}
+
+/* 错误提示 */
+.error-message {
+  padding: 1rem;
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+/* 加载状态 */
+.loading-text {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  color: #6c757d;
+  font-size: 0.875rem;
+}
+
 /* 翻译控制 */
 .translation-controls {
   margin-bottom: 0.5rem;
