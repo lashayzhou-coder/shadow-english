@@ -9,6 +9,7 @@ import {
 import { getTranscriptFromPodcast, isRssUrl, isPodcastUrl } from '../../services/RssParser'
 import { hasApiKey, mockTranscribe } from '../../services/WhisperApi'
 import { parseSubtitles } from '../../services/SubtitleParser'
+import { getCachedTranslation } from '../../services/translationApi'
 
 const Transcript = ({
   currentTime,
@@ -160,29 +161,16 @@ This is a great tool for English learning.`
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }, [])
 
-  // 获取句子的翻译（简化版，实际需要调用 API）
+  // 获取句子的翻译
   const getSentenceTranslation = useCallback(async (sentence, index) => {
-    // 简单实现 - 实际应该调用翻译 API
-    if (sentence.toLowerCase().includes('sample')) {
-      return '这是一个示例字幕'
+    try {
+      const translation = await getCachedTranslation(sentence)
+      return translation
+    } catch (error) {
+      console.error('获取句子翻译失败:', error)
+      return null
     }
-    if (sentence.toLowerCase().includes('caption')) {
-      return '它演示了字幕系统的工作原理'
-    }
-    if (sentence.toLowerCase().includes('highlighted')) {
-      return '每个句子播放时都会高亮显示'
-    }
-    if (sentence.toLowerCase().includes('details')) {
-      return '您可以点击任意单词查看详情'
-    }
-    if (sentence.toLowerCase().includes('translation')) {
-      return '悬停在单词上可查看翻译'
-    }
-    if (sentence.toLowerCase().includes('learning')) {
-      return '这是一个很好的英语学习工具'
-    }
-    return null
-  }, [])
+  }, [getCachedTranslation])
 
   // 加载翻译
   const loadTranslations = useCallback(async () => {
