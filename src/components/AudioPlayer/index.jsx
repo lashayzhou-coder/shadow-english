@@ -11,6 +11,8 @@ const AudioPlayer = () => {
   const [mediaSource, setMediaSource] = useState('')
   const [sourceType, setSourceType] = useState('url') // 'url' or 'file'
   const [isVideo, setIsVideo] = useState(false) // 是否是视频文件
+  const [isYouTube, setIsYouTube] = useState(false) // 是否是 YouTube 视频
+  const [youtubeVideoId, setYoutubeVideoId] = useState('') // YouTube 视频 ID
 
   // 加载和错误状态
   const [isLoading, setIsLoading] = useState(false)
@@ -28,9 +30,11 @@ const AudioPlayer = () => {
   // Refs
   const audioRef = useRef(null)
   const videoRef = useRef(null) // 视频元素引用
+  const youtubePlayerRef = useRef(null) // YouTube iframe 引用
   const audioContextRef = useRef(null)
   const gainNodeRef = useRef(null)
   const fileObjectUrlRef = useRef(null) // 保存对象 URL 用于清理
+  const intervalRef = useRef(null) // 用于 YouTube 进度更新的间隔
 
   // 音频引擎初始化
   useEffect(() => {
@@ -48,8 +52,196 @@ const AudioPlayer = () => {
     }
   }, [])
 
+  // 提取 YouTube 视频 ID
+  const extractYouTubeVideoId = useCallback((url) => {
+    if (!url) return null
+
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\s?\/]+)/,
+      /youtube\.com\/shorts\/([^&\s?\/]+)/
+    ]
+
+    for (const pattern of patterns) {
+      const match = url.match(pattern)
+      if (match && match[1]) {
+        return match[1]
+      }
+    }
+
+    return null
+  }, [])
+
+  // 判断是否是 YouTube 链接
+  const isYouTubeUrl = useCallback((url) => {
+    return url && (
+      url.includes('youtube.com') ||
+      url.includes('youtu.be')
+    )
+  }, [])
+
+  // 判断是否是视频文件
+  const isVideoFile = useCallback((url) => {
+    if (!url) return false
+    if (isYouTubeUrl(url)) return true
+
+    return (
+      url.includes('.mp4') ||
+      url.includes('.webm') ||
+      url.includes('.ogg') ||
+      url.includes('.avi') ||
+      url.includes('.mov')
+    )
+  }, [isYouTubeUrl])
+
+  // 清理旧的对象 URL（防止内存泄漏）
+  const cleanupObjectUrl = useCallback(() => {
+    if (fileObjectUrlRef.current) {
+      URL.revokeObjectURL(fileObjectUrlRef.current)
+      fileObjectUrlRef.current = null
+    }
+  }, [])
+
+  // 清理 YouTube 间隔
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+    }
+  }, [])
+
+  // 加载媒体 URL（支持音频、视频和 YouTube）
+  const loadMediaUrl = useCallback(() => {
+    if (!urlInput.trim()) {
+      setError('请输入音频/视频链接')
+      return
+    }
+
+    // 清理旧的资源
+    cleanupObjectUrl()
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+    }
+
+    // 重置状态
+    setIsPlaying(false)
+    setAPoint(null)
+    setBPoint(null)
+    setIsRepeating(false)
+    setCurrentTime(0)
+    setDuration(0)
+    setError(null)
+    setIsLoading(true)
+    setLoadProgress(0)
+
+    // 判断是否是 YouTube
+    const youtube = isYouTubeUrl(urlInput)
+    const videoId = youtube ? extractYouTubeVideoId(urlInput) : null
+
+    if (youtube && !videoId) {
+      setError('无法识别 YouTube 视频链接，请检查链接格式')
+      setIsLoading(false)
+      return
+    }
+
+    setIsYouTube(youtube)
+    setYoutubeVideoId(videoId)
+
+    // 判断是否是视频（非 YouTube）
+    const video = isVideoFile(urlInput) && !youtube
+    setIsVideo(video)
+
+    // YouTube 处理
+    if (youtube && videoId) {
+      // YouTube 不需要预加载，直接显示嵌入播放器
+      setIsLoading(false)
+      setMediaSource(urlInput.trim())
+      setSourceType('url')
+      // 设置一个假的 duration（会通过 YouTube API 实时获取）
+      setDuration(9999)
+      return
+    }
+
+    // 直接修改 src 属性，保持元素存在
+    if (video && videoRef.current) {
+      videoRef.current.src = urlInput.trim()
+      videoRef.current.preload = 'metadata' // 视频使用 metadata 预加载
+    } else if (!video && audioRef.current) {
+      audioRef.current.src = urlInput.trim()
+      audioRef.current.preload = 'auto' // 音频使用 auto 预加载
+    }
+
+    setMediaSource(urlInput.trim())
+    setSourceType('url')
+  }, [urlInput, cleanupObjectUrl, isYouTubeUrl, extractYouTubeVideoId, isVideoFile])
+
+  // 本地文件处理（优化版）
+  const handleFileInput = useCallback((e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0]
+
+      // 文件大小检查（大于 50MB 警告）
+      const maxSize = 50 * 1024 * 1024 // 50MB
+      if (file.size > maxSize) {
+        setError(`文件过大（${(file.size / (1024 * 1024)).toFixed(1)}MB），建议使用音频文件或分割文件后再处理`)
+        return
+      }
+
+      // 清理旧的资源
+      cleanupObjectUrl()
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+
+      // 重置状态
+      setIsPlaying(false)
+      setAPoint(null)
+      setBPoint(null)
+      setIsRepeating(false)
+      setCurrentTime(0)
+      setDuration(0)
+      setError(null)
+      setIsLoading(true)
+      setLoadProgress(0)
+      setSourceType('file')
+      setUrlInput('')
+      setIsYouTube(false)
+
+      // 判断是否是视频
+      const video = file.type.includes('video')
+      setIsVideo(video)
+
+      // 创建对象 URL（流式播放优化）
+      const objectUrl = URL.createObjectURL(file)
+      fileObjectUrlRef.current = objectUrl
+
+      // 直接修改 src 属性
+      if (video && videoRef.current) {
+        videoRef.current.src = objectUrl
+        videoRef.current.preload = 'metadata' // 视频使用 metadata 预加载
+      } else if (!video && audioRef.current) {
+        audioRef.current.src = objectUrl
+        audioRef.current.preload = 'auto' // 音频使用 auto 预加载
+      }
+
+      setMediaSource(objectUrl)
+    }
+  }, [cleanupObjectUrl])
+
+  // 清理资源（组件卸载时）
+  useEffect(() => {
+    return () => {
+      cleanupObjectUrl()
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+    }
+  }, [cleanupObjectUrl])
+
   // 媒体加载效果（保持元素持续存在）
   useEffect(() => {
+    if (isYouTube) return // YouTube 使用 iframe，不需要这些监听
+
     const mediaRef = isVideo ? videoRef.current : audioRef.current
     if (!mediaRef) return
 
@@ -138,123 +330,24 @@ const AudioPlayer = () => {
       mediaRef.removeEventListener('ended', handleEnded)
       mediaRef.removeEventListener('timeupdate', handleTimeUpdate)
     }
-  }, [isVideo, isRepeating, aPoint, bPoint, duration])
+  }, [isVideo, isYouTube, isRepeating, aPoint, bPoint, duration])
 
-  // 清理旧的对象 URL（防止内存泄漏）
-  const cleanupObjectUrl = useCallback(() => {
-    if (fileObjectUrlRef.current) {
-      URL.revokeObjectURL(fileObjectUrlRef.current)
-      fileObjectUrlRef.current = null
-    }
-  }, [])
-
-  // 判断是否是视频文件
-  const isVideoFile = useCallback((url) => {
-    return url && (
-      url.includes('.mp4') ||
-      url.includes('.webm') ||
-      url.includes('.ogg') ||
-      url.includes('.avi') ||
-      url.includes('.mov')
-    )
-  }, [])
-
-  // 加载媒体 URL（支持音频和视频）
-  const loadMediaUrl = useCallback(() => {
-    if (!urlInput.trim()) {
-      setError('请输入音频/视频链接')
+  // 播放/暂停（支持 YouTube）
+  const togglePlayPause = useCallback(() => {
+    if (isYouTube) {
+      // YouTube 使用 iframe 通信
+      const iframe = youtubePlayerRef.current
+      if (iframe && iframe.contentWindow) {
+        if (isPlaying) {
+          iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*')
+        } else {
+          iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*')
+        }
+      }
+      setIsPlaying(!isPlaying)
       return
     }
 
-    // 清理旧的资源
-    cleanupObjectUrl()
-
-    // 重置状态
-    setIsPlaying(false)
-    setAPoint(null)
-    setBPoint(null)
-    setIsRepeating(false)
-    setCurrentTime(0)
-    setDuration(0)
-    setError(null)
-    setIsLoading(true)
-    setLoadProgress(0)
-
-    // 判断是否是视频
-    const video = isVideoFile(urlInput)
-    setIsVideo(video)
-
-    // 直接修改 src 属性，保持元素存在
-    if (video && videoRef.current) {
-      videoRef.current.src = urlInput.trim()
-      videoRef.current.preload = 'metadata' // 视频使用 metadata 预加载
-    } else if (!video && audioRef.current) {
-      audioRef.current.src = urlInput.trim()
-      audioRef.current.preload = 'auto' // 音频使用 auto 预加载
-    }
-
-    setMediaSource(urlInput.trim())
-    setSourceType('url')
-  }, [urlInput, cleanupObjectUrl, isVideoFile])
-
-  // 本地文件处理（优化版）
-  const handleFileInput = useCallback((e) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0]
-
-      // 文件大小检查（大于 50MB 警告）
-      const maxSize = 50 * 1024 * 1024 // 50MB
-      if (file.size > maxSize) {
-        setError(`文件过大（${(file.size / (1024 * 1024)).toFixed(1)}MB），建议使用音频文件或分割文件后再处理`)
-        return
-      }
-
-      // 清理旧的资源
-      cleanupObjectUrl()
-
-      // 重置状态
-      setIsPlaying(false)
-      setAPoint(null)
-      setBPoint(null)
-      setIsRepeating(false)
-      setCurrentTime(0)
-      setDuration(0)
-      setError(null)
-      setIsLoading(true)
-      setLoadProgress(0)
-      setSourceType('file')
-      setUrlInput('')
-
-      // 判断是否是视频
-      const video = file.type.includes('video')
-      setIsVideo(video)
-
-      // 创建对象 URL（流式播放优化）
-      const objectUrl = URL.createObjectURL(file)
-      fileObjectUrlRef.current = objectUrl
-
-      // 直接修改 src 属性
-      if (video && videoRef.current) {
-        videoRef.current.src = objectUrl
-        videoRef.current.preload = 'metadata' // 视频使用 metadata 预加载
-      } else if (!video && audioRef.current) {
-        audioRef.current.src = objectUrl
-        audioRef.current.preload = 'auto' // 音频使用 auto 预加载
-      }
-
-      setMediaSource(objectUrl)
-    }
-  }, [cleanupObjectUrl])
-
-  // 清理资源（组件卸载时）
-  useEffect(() => {
-    return () => {
-      cleanupObjectUrl()
-    }
-  }, [cleanupObjectUrl])
-
-  // 播放/暂停
-  const togglePlayPause = useCallback(() => {
     const mediaRef = isVideo ? videoRef.current : audioRef.current
     if (!mediaRef) return
 
@@ -264,10 +357,20 @@ const AudioPlayer = () => {
       mediaRef.play()
     }
     setIsPlaying(!isPlaying)
-  }, [isPlaying, isVideo])
+  }, [isPlaying, isVideo, isYouTube])
 
-  // 停止
+  // 停止（支持 YouTube）
   const handleStop = useCallback(() => {
+    if (isYouTube) {
+      const iframe = youtubePlayerRef.current
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage('{"event":"command","func":"stopVideo","args":""}', '*')
+      }
+      setIsPlaying(false)
+      setCurrentTime(0)
+      return
+    }
+
     const mediaRef = isVideo ? videoRef.current : audioRef.current
     if (!mediaRef) return
 
@@ -275,37 +378,73 @@ const AudioPlayer = () => {
     mediaRef.currentTime = 0
     setCurrentTime(0)
     setIsPlaying(false)
-  }, [isVideo])
+  }, [isVideo, isYouTube])
 
-  // 快进/快退
+  // 快进/快退（支持 YouTube）
   const jumpForward = useCallback(() => {
+    if (isYouTube) {
+      const iframe = youtubePlayerRef.current
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage(`{"event":"command","func":"seekTo","args":[${currentTime + 5},true]}`, '*')
+      }
+      setCurrentTime(currentTime + 5)
+      return
+    }
+
     const mediaRef = isVideo ? videoRef.current : audioRef.current
     if (!mediaRef) return
     mediaRef.currentTime = Math.min(
       mediaRef.currentTime + 5,
       duration
     )
-  }, [duration, isVideo])
+  }, [isVideo, isYouTube, currentTime, duration])
 
   const jumpBackward = useCallback(() => {
+    if (isYouTube) {
+      const iframe = youtubePlayerRef.current
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage(`{"event":"command","func":"seekTo","args":[${Math.max(currentTime - 5, 0)},true]}`, '*')
+      }
+      setCurrentTime(Math.max(currentTime - 5, 0))
+      return
+    }
+
     const mediaRef = isVideo ? videoRef.current : audioRef.current
     if (!mediaRef) return
     mediaRef.currentTime = Math.max(mediaRef.currentTime - 5, 0)
-  }, [isVideo])
+  }, [isVideo, isYouTube, currentTime])
 
-  // 进度条拖拽
+  // 进度条拖拽（支持 YouTube）
   const handleProgressChange = useCallback((e) => {
+    const newTime = parseFloat(e.target.value)
+
+    if (isYouTube) {
+      const iframe = youtubePlayerRef.current
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage(`{"event":"command","func":"seekTo","args":[${newTime},true]}`, '*')
+      }
+      setCurrentTime(newTime)
+      return
+    }
+
     const mediaRef = isVideo ? videoRef.current : audioRef.current
     if (!mediaRef) return
-    const newTime = parseFloat(e.target.value)
     mediaRef.currentTime = newTime
     setCurrentTime(newTime)
-  }, [isVideo])
+  }, [isVideo, isYouTube])
 
-  // 音量控制
+  // 音量控制（支持 YouTube）
   const handleVolumeChange = useCallback((e) => {
     const newVolume = parseFloat(e.target.value)
     setVolume(newVolume)
+
+    if (isYouTube) {
+      const iframe = youtubePlayerRef.current
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage(`{"event":"command","func":"setVolume","args":[${newVolume * 100}]}`, '*')
+      }
+      return
+    }
 
     const mediaRef = isVideo ? videoRef.current : audioRef.current
     if (mediaRef) {
@@ -315,37 +454,70 @@ const AudioPlayer = () => {
     if (gainNodeRef.current) {
       gainNodeRef.current.gain.value = newVolume
     }
-  }, [isVideo])
+  }, [isVideo, isYouTube])
 
-  // 变速播放
+  // 变速播放（不支持 YouTube）
   const handleSpeedChange = useCallback((speed) => {
     setPlaybackRate(speed)
+
+    if (isYouTube) {
+      // YouTube 不支持通过 iframe API 改变播放速度
+      setError('YouTube 视频暂不支持变速播放')
+      setTimeout(() => setError(null), 3000)
+      return
+    }
+
     const mediaRef = isVideo ? videoRef.current : audioRef.current
     if (mediaRef) {
       mediaRef.playbackRate = speed
     }
-  }, [isVideo])
+  }, [isVideo, isYouTube])
 
-  // AB 复读设置
+  // AB 复读设置（支持 YouTube）
   const handleSetAPoint = useCallback(() => {
-    const mediaRef = isVideo ? videoRef.current : audioRef.current
-    if (!mediaRef) return
-    setAPoint(mediaRef.currentTime)
+    setAPoint(currentTime)
     setIsRepeating(false)
-  }, [isVideo])
+  }, [currentTime])
 
   const handleSetBPoint = useCallback(() => {
-    const mediaRef = isVideo ? videoRef.current : audioRef.current
-    if (!mediaRef) return
-    setBPoint(mediaRef.currentTime)
+    setBPoint(currentTime)
     setIsRepeating(true)
-  }, [isVideo])
+  }, [currentTime])
 
   const handleClearAB = useCallback(() => {
     setAPoint(null)
     setBPoint(null)
     setIsRepeating(false)
   }, [])
+
+  // AB 复读处理（YouTube 需要特殊处理）
+  useEffect(() => {
+    if (!isRepeating || aPoint === null || bPoint === null) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+      return
+    }
+
+    if (isYouTube) {
+      // YouTube 使用间隔检查
+      intervalRef.current = setInterval(() => {
+        if (currentTime >= bPoint) {
+          const iframe = youtubePlayerRef.current
+          if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.postMessage(`{"event":"command","func":"seekTo","args":[${aPoint},true]}`, '*')
+          }
+          setCurrentTime(aPoint)
+        }
+      }, 100)
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+    }
+  }, [isRepeating, aPoint, bPoint, currentTime, isYouTube])
 
   // URL 输入处理（回车加载）
   const handleUrlKeyDown = useCallback((e) => {
@@ -356,19 +528,11 @@ const AudioPlayer = () => {
 
   // 格式化时间
   const formatTime = useCallback((seconds) => {
-    if (isNaN(seconds)) return '0:00'
+    if (isNaN(seconds) || seconds === Infinity) return '0:00'
 
     const mins = Math.floor(seconds / 60)
     const secs = Math.floor(seconds % 60)
     return `${mins}:${secs.toString().padStart(2, '0')}`
-  }, [])
-
-  // 格式化文件大小
-  const formatFileSize = useCallback((bytes) => {
-    if (!bytes) return '0 B'
-    if (bytes < 1024) return bytes + ' B'
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
   }, [])
 
   // 键盘快捷键
@@ -428,7 +592,7 @@ const AudioPlayer = () => {
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
               onKeyDown={handleUrlKeyDown}
-              placeholder="请输入音频/视频 URL，按回车加载"
+              placeholder="请输入音频/视频/YouTube URL，按回车加载"
               className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600
                        rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
               disabled={isLoading}
@@ -467,9 +631,18 @@ const AudioPlayer = () => {
         </div>
 
         {/* 加载进度 */}
-        {isLoading && loadProgress > 0 && (
+        {isLoading && loadProgress > 0 && !isYouTube && (
           <div className="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-2 rounded-md mb-4">
             加载中... {loadProgress}%（已缓冲可播放）
+          </div>
+        )}
+
+        {/* YouTube 提示 */}
+        {isYouTube && (
+          <div className="bg-purple-100 border border-purple-400 text-purple-700 px-4 py-2 rounded-md mb-4">
+            YouTube 视频已加载！使用下方控制按钮进行播放。
+            <br />
+            <small>注意：变速播放功能不支持 YouTube 视频。</small>
           </div>
         )}
 
@@ -486,7 +659,7 @@ const AudioPlayer = () => {
         ref={audioRef}
         preload="auto"
         volume={volume}
-        className={isVideo ? 'hidden' : 'block'}
+        className={isVideo || isYouTube ? 'hidden' : 'block'}
         crossOrigin="anonymous" // 启用跨域支持，以便获取更多元数据
       />
 
@@ -494,21 +667,24 @@ const AudioPlayer = () => {
         ref={videoRef}
         preload="metadata"
         volume={volume}
-        className={`w-full rounded-lg shadow-md ${isVideo ? 'block' : 'hidden'}`}
+        className={`w-full rounded-lg shadow-md ${isVideo && !isYouTube ? 'block' : 'hidden'}`}
         controls={false} // 隐藏默认控制
         crossOrigin="anonymous"
         playsInline // 允许在 iOS 上内联播放
       />
 
-      {/* 视频显示区域（如果是视频） */}
-      {mediaSource && isVideo && (
+      {/* YouTube 嵌入播放器 */}
+      {mediaSource && isYouTube && youtubeVideoId && (
         <div className="video-container bg-black rounded-lg overflow-hidden mb-4 shadow-lg">
-          {/* 视频元素已在上方添加，这里显示占位或额外控制 */}
-          {!isPlaying && !isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-black bg-opacity-50">
-              <div className="text-white text-2xl">点击播放</div>
-            </div>
-          )}
+          <iframe
+            ref={youtubePlayerRef}
+            src={`https://www.youtube.com/embed/${youtubeVideoId}?enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
+            className="w-full aspect-video"
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            title="YouTube video player"
+          />
         </div>
       )}
 
@@ -547,7 +723,7 @@ const AudioPlayer = () => {
           {/* 时间显示 */}
           <div className="time-display flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-4">
             <span>{formatTime(currentTime)}</span>
-            <span>{formatTime(duration)}</span>
+            <span>{isYouTube ? 'YouTube' : formatTime(duration)}</span>
           </div>
 
           {/* 主要控制按钮 */}
@@ -572,7 +748,7 @@ const AudioPlayer = () => {
               onClick={togglePlayPause}
               className="btn btn-primary w-16 h-16 text-lg"
               aria-label={isPlaying ? "暂停" : "播放"}
-              disabled={isLoading || (duration === 0 && !isPlaying)}
+              disabled={isLoading}
             >
               {isLoading ? (
                 <span className="animate-spin">⟳</span>
@@ -653,13 +829,19 @@ const AudioPlayer = () => {
                   className={`px-3 py-1 rounded-md text-sm min-w-[44px] min-h-[44px] ${
                     playbackRate === speed
                       ? 'bg-primary text-white'
-                      : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
+                      : isYouTube
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
                   }`}
+                  disabled={isYouTube}
                 >
                   {speed}x
                 </button>
               ))}
             </div>
+            {isYouTube && (
+              <p className="text-sm text-gray-500 mt-1">YouTube 暂不支持变速播放</p>
+            )}
           </div>
         </div>
       )}
@@ -673,17 +855,18 @@ const AudioPlayer = () => {
           <li>A 键：设置 A 点</li>
           <li>B 键：设置 B 点</li>
           <li>C 键：清除 AB 点</li>
-          <li>Enter 键：在输入框中加载音频</li>
+          <li>Enter 键：在输入框中加载</li>
         </ul>
       </div>
 
-      {/* 优化建议 */}
-      <div className="optimization-hints bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-md">
-        <p><strong>🎯 优化提示：</strong></p>
+      {/* 支持的链接类型提示 */}
+      <div className="optimization-hints bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md mt-4">
+        <p><strong>✅ 支持的媒体类型：</strong></p>
         <ul className="mt-2 space-y-1 text-sm">
-          <li>• 对于大视频文件，建议使用较短的片段或音频文件</li>
-          <li>• 网络状况不好时，建议下载到本地后再使用</li>
-          <li>• 加载过程中会显示缓冲进度，请耐心等待</li>
+          <li>• YouTube 视频链接（youtube.com, youtu.be）</li>
+          <li>• 本地音频文件（MP3, WAV, OGG 等）</li>
+          <li>• 本地视频文件（MP4, WebM 等）</li>
+          <li>• 网络音频/视频直链</li>
         </ul>
       </div>
     </div>
