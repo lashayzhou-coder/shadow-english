@@ -8,7 +8,6 @@ import { getCachedTranslation } from '../../services/translationApi'
 const Sentence = ({
   text,
   isCurrent,
-  isTranslated,
   translation,
   onWordClick,
   startTime,
@@ -19,6 +18,7 @@ const Sentence = ({
   const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 })
   const [wordDefinition, setWordDefinition] = useState(null)
   const [isLoadingDefinition, setIsLoadingDefinition] = useState(false)
+  const [showTranslation, setShowTranslation] = useState(false)
 
   // 工具提示 ref
   const tooltipRef = useRef(null)
@@ -114,12 +114,24 @@ const Sentence = ({
         })}
       </div>
 
-      {/* 翻译（如果有） */}
-      {isTranslated && translation && (
-        <div className="sentence-translation">
-          <span className="translation-label">译:</span>
-          <span className="translation-text">{translation}</span>
-        </div>
+      {/* 翻译控制和显示 */}
+      {translation && (
+        <>
+          <button
+            onClick={() => setShowTranslation(!showTranslation)}
+            className="translate-toggle"
+            title="显示/隐藏翻译"
+          >
+            {showTranslation ? '收起' : '译'}
+          </button>
+
+          {showTranslation && (
+            <div className="sentence-translation">
+              <span className="translation-label">译:</span>
+              <span className="translation-text">{translation}</span>
+            </div>
+          )}
+        </>
       )}
 
       {/* 单词悬停卡片 */}

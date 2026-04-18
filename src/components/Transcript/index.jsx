@@ -315,6 +315,15 @@ This is a great tool for English learning.`
         </div>
       )}
 
+      {/* 快捷键提示 */}
+      {!isEditing && sentences.length > 0 && (
+        <div className="transcript-hints mb-4">
+          <p className="text-sm text-gray-600">
+            💡 <strong>提示：</strong>播放时字幕会自动高亮
+          </p>
+        </div>
+      )}
+
       {/* 字幕显示区域 */}
       {!isEditing && sentences.length > 0 && (
         <div className="transcript-content">
@@ -329,7 +338,6 @@ This is a great tool for English learning.`
                 key={index}
                 text={sentence}
                 isCurrent={isCurrent}
-                isTranslated={showTranslation}
                 translation={translations[index]}
                 onWordClick={handleWordClick}
                 startTime={timestamp?.start}
@@ -351,15 +359,6 @@ This is a great tool for English learning.`
           ) : (
             <p>点击"粘贴字幕"添加字幕文本</p>
           )}
-        </div>
-      )}
-
-      {/* 快捷键提示 */}
-      {!isEditing && sentences.length > 0 && (
-        <div className="transcript-hints mt-4">
-          <p className="text-sm text-gray-600">
-            💡 <strong>提示：</strong>播放时字幕会自动高亮
-          </p>
         </div>
       )}
 

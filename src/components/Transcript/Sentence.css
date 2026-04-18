@@ -50,6 +50,31 @@
   background-color: rgba(79, 70, 229, 0.2);
 }
 
+/* 翻译按钮 */
+.translate-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 0.75rem;
+  margin-top: 0.5rem;
+  background-color: #4F46E5;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.translate-toggle:hover {
+  background-color: #4338CA;
+}
+
+.translate-toggle:active {
+  background-color: #3730A3;
+}
+
 /* 翻译样式 */
 .sentence-translation {
   margin-top: 0.5rem;
