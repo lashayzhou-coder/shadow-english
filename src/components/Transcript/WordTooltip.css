@@ -1,0 +1,144 @@
+/* WordTooltip 组件样式 */
+
+.word-tooltip {
+  position: fixed;
+  z-index: 10000;
+  background-color: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+  max-width: 280px;
+  font-size: 0.875rem;
+}
+
+/* 加载状态 */
+.tooltip-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.loading-spinner {
+  font-size: 1.5rem;
+  animation: spin 1s linear infinite;
+  margin-bottom: 0.5rem;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-text {
+  color: #6c757d;
+}
+
+/* 工具提示内容 */
+.tooltip-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* 单词头部 */
+.word-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0.5rem;
+}
+
+.word-header .word {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.word-header .phonetic {
+  font-size: 0.875rem;
+  color: #6c757d;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* 单词释义 */
+.word-definition {
+  color: #333;
+  line-height: 1.5;
+}
+
+/* 单词例句 */
+.word-examples {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 0.5rem;
+}
+
+.example {
+  font-size: 0.8rem;
+  color: #6c757d;
+  font-style: italic;
+  margin-bottom: 0.25rem;
+}
+
+/* 单词操作按钮 */
+.word-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 0.5rem;
+}
+
+.action-button {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  background-color: #4F46E5;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.8rem;
+}
+
+.action-button:hover {
+  background-color: #4338CA;
+}
+
+.action-button:active {
+  background-color: #3730A3;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .word-tooltip {
+    max-width: 250px;
+    padding: 0.75rem;
+  }
+
+  .word-header .word {
+    font-size: 1.1rem;
+  }
+}
+
+/* 动画效果 */
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.word-tooltip {
+  animation: fadeInScale 0.2s ease-out;
+}

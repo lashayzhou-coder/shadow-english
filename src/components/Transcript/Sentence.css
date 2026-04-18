@@ -1,0 +1,109 @@
+/* Sentence 组件样式 */
+
+.sentence-container {
+  margin-bottom: 1.5rem;
+  padding: 0.75rem;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.sentence-container.current {
+  background-color: rgba(245, 158, 11, 0.2);
+  border-radius: 6px;
+  padding-left: 1rem;
+  border-left: 3px solid #F59E0B;
+}
+
+.sentence-timestamp {
+  display: inline-block;
+  margin-right: 0.5rem;
+  font-size: 0.75rem;
+  color: #6c757d;
+  background-color: #e9ecef;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.sentence-text {
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: #333;
+}
+
+/* 单词样式 */
+.word {
+  display: inline-block;
+  padding: 0 2px;
+  margin: 0 1px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 400;
+}
+
+.word:hover {
+  background-color: rgba(79, 70, 229, 0.1);
+  color: #4F46E5;
+}
+
+.word:active {
+  background-color: rgba(79, 70, 229, 0.2);
+}
+
+/* 翻译样式 */
+.sentence-translation {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  border-left: 3px solid #888;
+}
+
+.translation-label {
+  font-weight: 500;
+  color: #6c757d;
+  margin-right: 0.5rem;
+}
+
+.translation-text {
+  color: #333;
+  font-style: italic;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .sentence-container {
+    padding: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .sentence-text {
+    font-size: 1rem;
+  }
+
+  .sentence-timestamp {
+    font-size: 0.7rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .sentence-text {
+    font-size: 1.15rem;
+  }
+}
+
+/* 动画效果 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sentence-container {
+  animation: fadeIn 0.3s ease-in-out;
+}

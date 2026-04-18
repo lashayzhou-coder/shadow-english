@@ -1,0 +1,113 @@
+/* Transcript 组件样式 */
+
+.transcript-container {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.transcript-controls {
+  margin-bottom: 1rem;
+}
+
+.transcript-editor {
+  margin-bottom: 1rem;
+}
+
+.transcript-content {
+  min-height: 200px;
+  max-height: 500px;
+  overflow-y: auto;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  padding: 1rem;
+  background-color: white;
+}
+
+.transcript-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.transcript-empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #6c757d;
+}
+
+.empty-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.transcript-hints {
+  font-size: 0.875rem;
+}
+
+/* 字幕编辑区域 */
+.transcript-editor textarea {
+  width: 100%;
+  min-height: 200px;
+  padding: 0.75rem;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.transcript-editor textarea:focus {
+  outline: none;
+  border-color: #4F46E5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.25);
+}
+
+.editor-hints {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: #6c757d;
+}
+
+.editor-hints p {
+  margin-bottom: 0.25rem;
+}
+
+.editor-hints ul {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+/* 翻译控制 */
+.translation-controls {
+  margin-bottom: 0.5rem;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .transcript-container {
+    padding: 1rem;
+  }
+
+  .transcript-content {
+    padding: 0.75rem;
+  }
+
+  .transcript-title {
+    font-size: 1.1rem;
+  }
+
+  .transcript-hints {
+    font-size: 0.75rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .transcript-content {
+    max-height: 600px;
+  }
+}
