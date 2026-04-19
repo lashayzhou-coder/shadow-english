@@ -1,9 +1,6 @@
 import React, { useState } from 'react';
 import './Sentence.css';
-import WordTooltip from './WordTooltip';
 import { splitIntoWords, isWord } from './TextParser';
-import { getCachedWordDefinition } from '../../services/dictionaryApi';
-import { getCachedTranslation } from '../../services/translationApi';
 
 const Sentence = ({
   sentence,
@@ -27,12 +24,8 @@ const Sentence = ({
       <div className="sentence-text">
         {words.map((token, tokenIndex) => {
           if (isWord(token)) {
-            const wordKey = `${sentenceIndex}-${token}`;
-            const definition = wordDefinitions[wordKey];
-
             return (
               <span key={tokenIndex} className="word-wrapper">
-                <WordTooltip word={token} definition={definition} />
                 <span
                   className="word-text"
                   onClick={() => onWordClick(token, sentenceIndex)}

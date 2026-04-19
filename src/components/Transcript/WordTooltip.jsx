@@ -6,6 +6,11 @@ const WordTooltip = ({ word, definition, isLoading, position, onClose }) => {
     return null
   }
 
+  // 如果没有位置，不显示（防止错误）
+  if (!position || !position.x || !position.y) {
+    return null
+  }
+
   return (
     <div
       className="word-tooltip"
