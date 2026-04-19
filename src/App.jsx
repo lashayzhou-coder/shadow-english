@@ -3,6 +3,8 @@ import AudioPlayer from './components/AudioPlayer'
 import Transcript from './components/Transcript'
 import WordCard from './components/WordCard'
 import Settings from './components/Settings'
+import VocabularyList from './components/VocabularyList'
+import { getCachedWordDefinition } from './services/dictionaryApi'
 import './App.css'
 
 function App() {
@@ -28,17 +30,10 @@ function App() {
     setSourceType(type)
   }, [])
 
-  const handleWordClick = useCallback((word) => {
+  const handleWordClick = useCallback(async (word) => {
     console.log('点击单词:', word)
-    // 简单的单词定义查找
-    const definitions = {
-      'sample': { word: 'sample', phonetic: '/ˈsæmpəl/', definition: '样本，样品', examples: ['This is a sample text.', 'Please provide a sample.'] },
-      'caption': { word: 'caption', phonetic: '/ˈkæpʃn/', definition: '字幕，说明文字', examples: ['The video has English captions.', 'Add captions to your photos.'] },
-      'demonstrates': { word: 'demonstrates', phonetic: '/ˈdɛmənstreɪts/', definition: '演示，证明', examples: ['This demonstrates how it works.', 'She demonstrates great skill.'] }
-    }
-
-    const definition = definitions[word.toLowerCase()] ||
-      { word, phonetic: '', definition: '单词释义', examples: [] }
+    // 使用真实的词典 API 获取单词定义
+    const definition = await getCachedWordDefinition(word.toLowerCase())
 
     setSelectedWord(word)
     setWordDefinition(definition)
@@ -142,14 +137,7 @@ function App() {
         {activeTab === 'vocab' && (
           <div className="mb-8">
             <h2 className="text-xl font-semibold mb-4">📚 生词本</h2>
-            <div className="bg-gray-100 dark:bg-gray-800 p-8 rounded-lg text-center">
-              <p className="text-gray-600 dark:text-gray-400">
-                生词本即将推出！
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
-                管理和复习词汇
-              </p>
-            </div>
+            <VocabularyList />
           </div>
         )}
 
@@ -160,18 +148,6 @@ function App() {
           </div>
         )}
       </main>
-
-      {/* 单词详情卡片 */}
-      {selectedWord && wordDefinition && (
-        <WordCard
-          word={selectedWord}
-          definition={wordDefinition}
-          onClose={() => {
-            setSelectedWord(null)
-            setWordDefinition(null)
-          }}
-        />
-      )}
 
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg">
@@ -245,6 +221,18 @@ function App() {
           onClose={() => {
             setSelectedWord(null)
             setWordDefinition(null)
+          }}
+          onAddToWordBook={(word, definition) => {
+            // 处理加入生词本
+            const vocab = JSON.parse(localStorage.getItem('vocabulary') || '[]')
+            if (!vocab.find(item => item.word === word)) {
+              vocab.push({
+                word,
+                definition,
+                timestamp: Date.now()
+              })
+              localStorage.setItem('vocabulary', JSON.stringify(vocab))
+            }
           }}
         />
       )}

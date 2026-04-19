@@ -1,19 +1,11 @@
-// 简单的文本翻译
-// 使用 MyMemory API
-const MYMEMORY_API = 'https://api.mymemory.translated.net/get'
+// 文本翻译 - 使用 Gemini API
+import { translateWithGemini } from './GeminiApi'
 
 // 翻译文本
 export const translateText = async (text, from = 'en', to = 'zh-CN') => {
   try {
-    const url = `${MYMEMORY_API}?q=${encodeURIComponent(text)}&langpair=${from}|${to}`
-    const response = await fetch(url)
-    const data = await response.json()
-
-    if (data.responseStatus === 200 && data.responseData) {
-      return data.responseData.translatedText
-    }
-
-    return null
+    const translation = await translateWithGemini(text, from, to)
+    return translation
   } catch (error) {
     console.error('Translation error:', error)
     return null

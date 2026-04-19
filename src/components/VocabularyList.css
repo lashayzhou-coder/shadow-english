@@ -1,0 +1,126 @@
+.vocabulary-container {
+  width: 100%;
+}
+
+.vocabulary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.vocabulary-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.vocabulary-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.vocabulary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1rem;
+  background-color: #f9fafb;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+}
+
+.word-info {
+  flex: 1;
+}
+
+.word-info .word {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.word-info .phonetic {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-top: 0.25rem;
+}
+
+.definition-preview {
+  margin-top: 0.5rem;
+}
+
+.meaning-item {
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+.meaning-item .part-of-speech {
+  font-weight: 600;
+  color: #4f46e5;
+  margin-right: 0.5rem;
+}
+
+.word-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-left: 1rem;
+}
+
+.vocabulary-empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  background-color: #f9fafb;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+}
+
+.vocabulary-empty .empty-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.vocabulary-empty h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.25rem;
+  color: #111827;
+}
+
+.vocabulary-empty p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .vocabulary-item {
+    background-color: #1f2937;
+    border-color: #374151;
+  }
+
+  .word-info .word {
+    color: #f9fafb;
+  }
+
+  .word-info .phonetic {
+    color: #9ca3af;
+  }
+
+  .meaning-item {
+    color: #d1d5db;
+  }
+
+  .vocabulary-empty {
+    background-color: #1f2937;
+    border-color: #374151;
+  }
+
+  .vocabulary-empty h3 {
+    color: #f9fafb;
+  }
+
+  .vocabulary-empty p {
+    color: #9ca3af;
+  }
+}
