@@ -65,6 +65,18 @@ const Transcript = ({
           // 处理字幕文件格式
           processSubtitles(result.subtitles);
           setTextSource(result.source);
+        } else if (result.sentences && result.sentences.length > 0) {
+          // 处理已经有句子和时间戳的数据
+          setSentences(result.sentences.map((sentence, index) => ({
+            text: sentence.text,
+            index
+          })));
+          setTimestamps(result.sentences);
+          setTranslations(new Array(result.sentences.length).fill(null));
+          if (result.text) {
+            setTranscriptText(result.text);
+          }
+          setTextSource(result.source);
         } else if (result.text) {
           // 处理纯文本
           parseText(result.text);

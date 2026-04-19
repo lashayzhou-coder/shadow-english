@@ -92,8 +92,10 @@ export const transcribeAudio = async (audioBlob, sourceType, sourceUrl = null) =
   }
 
   // 最后使用模拟数据
+  const mockResult = await mockTranscribe(60)
   return {
-    text: await mockTranscribe(60),
+    text: mockResult.text,
+    sentences: mockResult.sentences,
     source: 'mock',
     type: 'text'
   }
@@ -125,10 +127,13 @@ const checkVibeAvailable = async () => {
 
 // 主转录入口
 export const getTranscript = async (audioSource, sourceType) => {
-  let transcript = null
+  // 安全检查
+  if (!audioSource) {
+    return null
+  }
 
   // 首先尝试从音频来源获取字幕
-  if (sourceType === 'url' && audioSource) {
+  if (sourceType === 'url' && typeof audioSource === 'string') {
     // 对于网络音频，尝试查找字幕
     const subtitleResult = await findSubtitlesForSource(audioSource)
     if (subtitleResult) {
@@ -136,10 +141,23 @@ export const getTranscript = async (audioSource, sourceType) => {
     }
   }
 
-  // 尝试转录音频
-  if (audioSource instanceof Blob) {
+  // 尝试转录音频（对于文件或 Blob 来源）
+  if (audioSource instanceof Blob || sourceType === 'file') {
     // 对于本地文件，进行音频转录
-    const transcription = await transcribeAudio(audioSource, sourceType)
+    let transcription
+    try {
+      transcription = await transcribeAudio(audioSource, sourceType)
+    } catch (error) {
+      console.error('音频转录失败:', error)
+      // 返回默认的模拟转录作为后备方案
+      const mockResult = await mockTranscribe(60)
+      return {
+        text: mockResult.text,
+        sentences: mockResult.sentences,
+        source: 'mock',
+        type: 'text'
+      }
+    }
     return transcription
   }
 
