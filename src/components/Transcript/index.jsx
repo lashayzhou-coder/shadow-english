@@ -38,7 +38,7 @@ const Transcript = ({
   const { visibleRange, centerIndex } = useSentencePositioning(
     currentSentenceIndex,
     sentences.length,
-    10 // 每次显示10句
+    8 // 每次显示8句
   );
 
   // 当音频来源变化时自动加载字幕
@@ -250,6 +250,15 @@ This is a great tool for English learning.`;
     setSelectedWordDefinition(null);
   }, []);
 
+  // 处理翻译更新
+  const handleTranslationUpdate = useCallback((index, translation) => {
+    setTranslations(prev => {
+      const newTranslations = [...prev];
+      newTranslations[index] = translation;
+      return newTranslations;
+    });
+  }, []);
+
   // 处理添加到生词本
   const handleAddToWordBook = useCallback((word, data) => {
     console.log('添加到生词本:', word, data);
@@ -394,6 +403,7 @@ This is a great tool for English learning.`;
             translations={translations}
             wordDefinitions={wordDefinitions}
             onWordClick={handleWordClick}
+            onTranslationUpdate={handleTranslationUpdate}
           />
         </div>
       )}

@@ -1,20 +1,38 @@
 import React, { useState } from 'react';
 import './Sentence.css';
 import { splitIntoWords, isWord } from './TextParser';
+import { translateWithGemini } from '../../services/GeminiApi';
 
 const Sentence = ({
   sentence,
   sentenceIndex,
   isCurrent,
-  translation,
+  translation: initialTranslation,
   wordDefinitions,
-  onWordClick
+  onWordClick,
+  onTranslationUpdate
 }) => {
   const [showTranslation, setShowTranslation] = useState(false);
+  const [translation, setTranslation] = useState(initialTranslation);
+  const [isTranslating, setIsTranslating] = useState(false);
 
   const words = splitIntoWords(sentence.text);
 
-  const toggleTranslation = () => {
+  const toggleTranslation = async () => {
+    if (!showTranslation && !translation && !isTranslating) {
+      setIsTranslating(true);
+      try {
+        const result = await translateWithGemini(sentence.text, 'en', 'zh-CN');
+        setTranslation(result);
+        if (onTranslationUpdate) {
+          onTranslationUpdate(sentenceIndex, result);
+        }
+      } catch (error) {
+        console.error('Translation error:', error);
+      } finally {
+        setIsTranslating(false);
+      }
+    }
     setShowTranslation(!showTranslation);
   };
 
@@ -44,8 +62,9 @@ const Sentence = ({
         <button
           className="translate-button"
           onClick={toggleTranslation}
+          disabled={isTranslating}
         >
-          {showTranslation ? '收起' : '译'}
+          {isTranslating ? '...' : (showTranslation ? '收起' : '译')}
         </button>
         {showTranslation && translation && (
           <div className="translation-content">

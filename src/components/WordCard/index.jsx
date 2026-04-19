@@ -35,6 +35,11 @@ const WordCard = ({ word, definition, onClose, onAddToWordBook }) => {
           {definition.phonetic && (
             <div className="phonetic">{definition.phonetic}</div>
           )}
+          {definition.chineseTranslation && (
+            <div className="chinese-translation">
+              中文释义：{definition.chineseTranslation}
+            </div>
+          )}
         </div>
 
         {/* 发音按钮 */}

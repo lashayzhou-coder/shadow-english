@@ -46,6 +46,14 @@
   margin-top: 0.25rem;
 }
 
+.chinese-translation-preview {
+  font-size: 0.875rem;
+  color: #059669;
+  margin-top: 0.5rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
 .definition-preview {
   margin-top: 0.5rem;
 }
@@ -105,6 +113,10 @@
 
   .word-info .phonetic {
     color: #9ca3af;
+  }
+
+  .chinese-translation-preview {
+    color: #34d399;
   }
 
   .meaning-item {

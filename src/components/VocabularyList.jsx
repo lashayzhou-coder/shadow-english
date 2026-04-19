@@ -54,6 +54,11 @@ const VocabularyList = () => {
               {item.definition.phonetic && (
                 <div className="phonetic">{item.definition.phonetic}</div>
               )}
+              {item.definition.chineseTranslation && (
+                <div className="chinese-translation-preview">
+                  中文释义：{item.definition.chineseTranslation}
+                </div>
+              )}
               {item.definition.definitions && item.definition.definitions.length > 0 && (
                 <div className="definition-preview">
                   {item.definition.definitions.map((meaning, idx) => (

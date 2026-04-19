@@ -117,6 +117,14 @@
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
+.chinese-translation {
+  font-size: 1.25rem;
+  color: #059669;
+  font-weight: 500;
+  margin-top: 0.75rem;
+  line-height: 1.6;
+}
+
 /* 音频控制 */
 .audio-controls {
   padding: 1rem 2rem;

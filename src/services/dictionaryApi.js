@@ -1,4 +1,6 @@
 // 词典 API 服务
+import { translateWithGemini } from './GeminiApi'
+
 const BASE_URL = "https://api.dictionaryapi.dev/api/v2/entries/en"
 
 // 格式化单词数据
@@ -21,7 +23,8 @@ const formatWordData = (data) => {
     word,
     phonetic,
     audioUrl,
-    definitions
+    definitions,
+    chineseTranslation: null
   }
 }
 
@@ -36,7 +39,17 @@ export const getWordDefinition = async (word) => {
       throw new Error('API error')
     }
     const data = await response.json()
-    return formatWordData(data[0])
+    const formattedData = formatWordData(data[0])
+
+    // 获取中文释义
+    try {
+      const translation = await translateWithGemini(word, 'en', 'zh-CN')
+      formattedData.chineseTranslation = translation
+    } catch (translationError) {
+      console.error('Translation error:', translationError)
+    }
+
+    return formattedData
   } catch (error) {
     console.error('Dictionary API error:', error)
     return null
