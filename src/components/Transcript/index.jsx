@@ -43,15 +43,19 @@ const Transcript = ({
 
   // 当音频来源变化时自动加载字幕
   useEffect(() => {
+    console.log('Transcript useEffect triggered:', { audioSource, sourceType });
     if (audioSource) {
       autoLoadTranscript();
     }
-  }, [audioSource, sourceType, duration]);
+  }, [audioSource, sourceType]);
 
   // 自动加载字幕
   const autoLoadTranscript = useCallback(async () => {
+    console.log('autoLoadTranscript called');
+
     // 检查是否启用了自动转录
     const autoTranscript = localStorage.getItem('auto_generate_transcript') === 'true';
+    console.log('Auto transcript enabled:', autoTranscript);
     if (!autoTranscript) return;
 
     setIsLoading(true);
@@ -59,6 +63,7 @@ const Transcript = ({
 
     try {
       const result = await getTranscript(audioSource, sourceType);
+      console.log('getTranscript result:', result);
 
       if (result) {
         if (result.type === 'subtitles') {
@@ -82,13 +87,16 @@ const Transcript = ({
           parseText(result.text);
           setTextSource(result.source);
         }
+      } else {
+        console.log('No result from getTranscript');
       }
     } catch (err) {
+      console.error('Error loading transcript:', err);
       setError('加载字幕失败: ' + err.message);
     } finally {
       setIsLoading(false);
     }
-  }, [audioSource, sourceType, duration]);
+  }, [audioSource, sourceType]);
 
   // 处理字幕文件格式
   const processSubtitles = useCallback((subtitles) => {
