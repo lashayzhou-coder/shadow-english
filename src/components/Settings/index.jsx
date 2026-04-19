@@ -92,7 +92,7 @@ const Settings = () => {
             </span>
           </label>
           <p className="setting-hint">
-            使用 Whisper API 自动转录音频为文本（需要 API Key）
+            使用 Gemini API 自动转录音频为文本（需要 API Key），支持播客 RSS 文字提取和字幕文件
           </p>
         </div>
 

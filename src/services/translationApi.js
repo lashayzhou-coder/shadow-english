@@ -1,63 +1,71 @@
-// 翻译 API 服务
-// 使用 Gemini API
-
-import { translateWithGemini } from './GeminiApi'
-
 // 简单的文本翻译
+// 使用 MyMemory API
+const MYMEMORY_API = 'https://api.mymemory.translated.net/get'
+
+// 翻译文本
 export const translateText = async (text, from = 'en', to = 'zh-CN') => {
   try {
-    const translation = await translateWithGemini(text, from, to)
-    return translation || null
+    const url = `${MYMEMORY_API}?q=${encodeURIComponent(text)}&langpair=${from}|${to}`
+    const response = await fetch(url)
+    const data = await response.json()
+
+    if (data.responseStatus === 200 && data.responseData) {
+      return data.responseData.translatedText
+    }
+
+    return null
   } catch (error) {
-    console.error('Translation API error:', error)
+    console.error('Translation error:', error)
     return null
   }
 }
 
-// 逐句翻译
-export const translateSentences = async (sentences, from = 'en', to = 'zh-CN') => {
-  const results = []
-  for (let i = 0; i < sentences.length; i++) {
-    const text = sentences[i]
-    const translation = await translateText(text, from, to)
-    results.push(translation || text)
-    // 避免请求过快
-    if (i < sentences.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 500))
-    }
-  }
-  return results
+// 翻译单个句子
+export const translateSentence = async (text) => {
+  return translateText(text, 'en', 'zh-CN')
 }
 
-// 简单的翻译结果缓存
+// 翻译整个字幕
+export const translateTranscript = async (transcript) => {
+  const sentences = transcript.split(/[.!?]+/).filter(s => s.trim().length > 0)
+  const translations = []
+
+  for (const [index, sentence] of sentences.entries()) {
+    const translation = await translateText(sentence.trim(), 'en', 'zh-CN')
+    if (translation) {
+      translations.push({
+        index,
+        original: sentence.trim(),
+        translated: translation.trim()
+      })
+    }
+  }
+
+  return translations
+}
+
+// 缓存翻译结果
 const cache = new Map()
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000 // 7 days
 
-export const getCachedTranslation = async (text, from = 'en', to = 'zh-CN') => {
-  const key = `${text}|${from}|${to}`
-  const cached = cache.get(key)
-  if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
-    return cached.translation
+export const getCachedTranslation = async (text) => {
+  const key = text.trim().toLowerCase()
+
+  if (cache.has(key)) {
+    const { translation, timestamp } = cache.get(key)
+    if (Date.now() - timestamp < CACHE_TTL) {
+      return translation
+    }
   }
 
-  const translation = await translateText(text, from, to)
+  const translation = await translateText(text)
+
   if (translation) {
-    cache.set(key, { translation, timestamp: Date.now() })
+    cache.set(key, {
+      translation,
+      timestamp: Date.now()
+    })
   }
+
   return translation
-}
-
-// 检测文本语言（简单实现）
-export const detectLanguage = async (text) => {
-  const length = text.length
-  const chineseCount = (text.match(/[\u4e00-\u9fff]/g) || []).length
-  const englishCount = (text.match(/[a-zA-Z]/g) || []).length
-
-  if (chineseCount > englishCount) {
-    return 'zh-CN'
-  }
-  if (englishCount > 0) {
-    return 'en'
-  }
-  return 'en'
 }

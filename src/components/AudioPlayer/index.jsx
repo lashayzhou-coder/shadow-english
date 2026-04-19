@@ -1,7 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import './AudioPlayer.css'
 
-const AudioPlayer = () => {
+const AudioPlayer = ({
+  onTimeUpdate,
+  onDurationChange,
+  onMediaSourceChange
+}) => {
   // 音频/视频状态
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -155,24 +159,32 @@ const AudioPlayer = () => {
     if (youtube && videoId) {
       // YouTube 不需要预加载，直接显示嵌入播放器
       setIsLoading(false)
-      setMediaSource(urlInput.trim())
+      const source = urlInput.trim()
+      setMediaSource(source)
       setSourceType('url')
+      if (onMediaSourceChange) {
+        onMediaSourceChange(source, 'url')
+      }
       // 设置一个假的 duration（会通过 YouTube API 实时获取）
       setDuration(9999)
       return
     }
 
     // 直接修改 src 属性，保持元素存在
+    const source = urlInput.trim()
     if (video && videoRef.current) {
-      videoRef.current.src = urlInput.trim()
+      videoRef.current.src = source
       videoRef.current.preload = 'metadata' // 视频使用 metadata 预加载
     } else if (!video && audioRef.current) {
-      audioRef.current.src = urlInput.trim()
+      audioRef.current.src = source
       audioRef.current.preload = 'auto' // 音频使用 auto 预加载
     }
 
-    setMediaSource(urlInput.trim())
+    setMediaSource(source)
     setSourceType('url')
+    if (onMediaSourceChange) {
+      onMediaSourceChange(source, 'url')
+    }
   }, [urlInput, cleanupObjectUrl, isYouTubeUrl, extractYouTubeVideoId, isVideoFile])
 
   // 本地文件处理（优化版）
@@ -225,6 +237,9 @@ const AudioPlayer = () => {
       }
 
       setMediaSource(objectUrl)
+      if (onMediaSourceChange) {
+        onMediaSourceChange(file, 'file')
+      }
     }
   }, [cleanupObjectUrl])
 
@@ -247,7 +262,11 @@ const AudioPlayer = () => {
 
     // 监听元数据加载（获取时长）
     const handleLoadedMetadata = () => {
-      setDuration(mediaRef.duration)
+      const newDuration = mediaRef.duration
+      setDuration(newDuration)
+      if (onDurationChange) {
+        onDurationChange(newDuration)
+      }
     }
 
     // 监听可以播放（缓冲足够）
@@ -298,7 +317,11 @@ const AudioPlayer = () => {
 
     // 监听时间更新
     const handleTimeUpdate = () => {
-      setCurrentTime(mediaRef.currentTime)
+      const newTime = mediaRef.currentTime
+      setCurrentTime(newTime)
+      if (onTimeUpdate) {
+        onTimeUpdate(newTime)
+      }
 
       // 检查是否需要循环 AB 区间
       if (isRepeating && aPoint !== null && bPoint !== null) {
@@ -846,16 +869,6 @@ const AudioPlayer = () => {
         </div>
       )}
 
-      {/* 支持的链接类型提示 */}
-      <div className="optimization-hints bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md mt-4">
-        <p><strong>✅ 支持的媒体类型：</strong></p>
-        <ul className="mt-2 space-y-1 text-sm">
-          <li>• YouTube 视频链接（youtube.com, youtu.be）</li>
-          <li>• 本地音频文件（MP3, WAV, OGG 等）</li>
-          <li>• 本地视频文件（MP4, WebM 等）</li>
-          <li>• 网络音频/视频直链</li>
-        </ul>
-      </div>
     </div>
   )
 }

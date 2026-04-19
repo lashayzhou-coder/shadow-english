@@ -11,6 +11,8 @@ function App() {
   const [duration, setDuration] = useState(0)
   const [selectedWord, setSelectedWord] = useState(null)
   const [wordDefinition, setWordDefinition] = useState(null)
+  const [mediaSource, setMediaSource] = useState('')
+  const [sourceType, setSourceType] = useState('url')
 
   // 监听音频播放器事件的回调
   const handleTimeUpdate = useCallback((time) => {
@@ -19,6 +21,11 @@ function App() {
 
   const handleDurationChange = useCallback((dur) => {
     setDuration(dur)
+  }, [])
+
+  const handleMediaSourceChange = useCallback((source, type) => {
+    setMediaSource(source)
+    setSourceType(type)
   }, [])
 
   const handleWordClick = useCallback((word) => {
@@ -56,6 +63,7 @@ function App() {
           <AudioPlayer
             onTimeUpdate={handleTimeUpdate}
             onDurationChange={handleDurationChange}
+            onMediaSourceChange={handleMediaSourceChange}
             duration={duration}
           />
         </div>
@@ -68,6 +76,8 @@ function App() {
               currentTime={currentTime}
               duration={duration}
               onWordClick={handleWordClick}
+              audioSource={mediaSource}
+              sourceType={sourceType}
             />
           </div>
         )}
@@ -83,6 +93,19 @@ function App() {
               <li>B 键：设置 B 点</li>
               <li>C 键：清除 AB 点</li>
               <li>Enter 键：在输入框中加载</li>
+            </ul>
+          </div>
+        )}
+
+        {/* 支持的媒体类型提示 - 根据 activeTab 显示 */}
+        {activeTab === 'player' && (
+          <div className="optimization-hints bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md mb-8">
+            <p><strong>✅ 支持的媒体类型：</strong></p>
+            <ul className="mt-2 space-y-1 text-sm">
+              <li>• YouTube 视频链接（youtube.com, youtu.be）</li>
+              <li>• 本地音频文件（MP3, WAV, OGG 等）</li>
+              <li>• 本地视频文件（MP4, WebM 等）</li>
+              <li>• 网络音频/视频直链</li>
             </ul>
           </div>
         )}

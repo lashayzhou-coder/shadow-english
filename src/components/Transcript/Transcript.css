@@ -1,5 +1,4 @@
 /* Transcript 组件样式 */
-
 .transcript-container {
   background-color: #f8f9fa;
   border-radius: 8px;
@@ -44,42 +43,20 @@
   margin-bottom: 1rem;
 }
 
-.transcript-hints {
-  font-size: 0.875rem;
+/* 字幕列表容器 */
+.sentence-list-container {
+  height: 400px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
 }
 
-/* 字幕编辑区域 */
-.transcript-editor textarea {
-  width: 100%;
-  min-height: 200px;
-  padding: 0.75rem;
-  border: 1px solid #ced4da;
-  border-radius: 4px;
-  font-family: inherit;
-  font-size: 1rem;
-  line-height: 1.5;
-  resize: vertical;
-}
-
-.transcript-editor textarea:focus {
-  outline: none;
-  border-color: #4F46E5;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.25);
-}
-
-.editor-hints {
-  margin-top: 0.5rem;
-  font-size: 0.875rem;
-  color: #6c757d;
-}
-
-.editor-hints p {
-  margin-bottom: 0.25rem;
-}
-
-.editor-hints ul {
-  margin: 0;
-  padding-left: 1.5rem;
+.sentence-item {
+  padding: 8px 16px;
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 /* 文本来源指示 */
@@ -131,8 +108,13 @@
     font-size: 1.1rem;
   }
 
-  .transcript-hints {
-    font-size: 0.75rem;
+  .sentence-list-container {
+    height: 300px;
+  }
+
+  .sentence-item {
+    padding: 6px 12px;
+    min-height: 70px;
   }
 }
 

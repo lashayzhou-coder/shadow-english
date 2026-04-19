@@ -1,16 +1,13 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
-import './Transcript.css'
-import Sentence from './Sentence'
-import WordCard from '../WordCard'
-import {
-  splitIntoSentences,
-  estimateTimestamps,
-  findCurrentSentenceIndex
-} from './TextParser'
-import { getTranscriptFromPodcast, isRssUrl, isPodcastUrl } from '../../services/RssParser'
-import { hasApiKey, mockTranscribe } from '../../services/WhisperApi'
-import { parseSubtitles } from '../../services/SubtitleParser'
-import { getCachedTranslation } from '../../services/translationApi'
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import './Transcript.css';
+import SentenceList from './SentenceList';
+import WordCard from '../WordCard';
+import useSentencePositioning from '../../hooks/useSentencePositioning';
+import { splitIntoSentences, estimateTimestamps, findCurrentSentenceIndex } from './TextParser';
+import { getCachedTranslation } from '../../services/translationApi';
+import { getCachedWordDefinition } from '../../services/dictionaryApi';
+import { getTranscript, createManualTranscript, isPodcastSource } from '../../services/TranscriptionApi';
+import { parseSubtitles } from '../../services/SubtitleParser';
 
 const Transcript = ({
   currentTime,
@@ -19,125 +16,149 @@ const Transcript = ({
   audioSource,
   sourceType
 }) => {
-  const [transcriptText, setTranscriptText] = useState('')
-  const [sentences, setSentences] = useState([])
-  const [timestamps, setTimestamps] = useState([])
-  const [currentSentenceIndex, setCurrentSentenceIndex] = useState(0)
-  const [isEditing, setIsEditing] = useState(false)
-  const [showTranslation, setShowTranslation] = useState(false)
-  const [translations, setTranslations] = useState([])
-  const [textSource, setTextSource] = useState(null) // 'rss' | 'whisper' | 'manual'
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [selectedWord, setSelectedWord] = useState(null)
+  const [transcriptText, setTranscriptText] = useState('');
+  const [sentences, setSentences] = useState([]);
+  const [timestamps, setTimestamps] = useState([]);
+  const [currentSentenceIndex, setCurrentSentenceIndex] = useState(0);
+  const [isEditing, setIsEditing] = useState(false);
+  const [translations, setTranslations] = useState([]);
+  const [textSource, setTextSource] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [selectedWord, setSelectedWord] = useState(null);
+  const [selectedWordDefinition, setSelectedWordDefinition] = useState(null);
+  const [wordDefinitions, setWordDefinitions] = useState({});
+  const [showWordCard, setShowWordCard] = useState(false);
 
   // 文本输入 ref
-  const textAreaRef = useRef(null)
+  const textAreaRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // 使用 Hook 计算可见句子范围和居中定位
+  const { visibleRange, centerIndex } = useSentencePositioning(
+    currentSentenceIndex,
+    sentences.length,
+    10 // 每次显示10句
+  );
+
+  // 当音频来源变化时自动加载字幕
+  useEffect(() => {
+    if (audioSource) {
+      autoLoadTranscript();
+    }
+  }, [audioSource, sourceType, duration]);
+
+  // 自动加载字幕
+  const autoLoadTranscript = useCallback(async () => {
+    // 检查是否启用了自动转录
+    const autoTranscript = localStorage.getItem('auto_generate_transcript') === 'true';
+    if (!autoTranscript) return;
+
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const result = await getTranscript(audioSource, sourceType);
+
+      if (result) {
+        if (result.type === 'subtitles') {
+          // 处理字幕文件格式
+          processSubtitles(result.subtitles);
+          setTextSource(result.source);
+        } else if (result.text) {
+          // 处理纯文本
+          parseText(result.text);
+          setTextSource(result.source);
+        }
+      }
+    } catch (err) {
+      setError('加载字幕失败: ' + err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [audioSource, sourceType, duration]);
+
+  // 处理字幕文件格式
+  const processSubtitles = useCallback((subtitles) => {
+    if (!subtitles || subtitles.length === 0) return;
+
+    setSentences(subtitles.map((sub, index) => ({
+      text: sub.text,
+      index
+    })));
+    setTimestamps(subtitles);
+    setTranslations(new Array(subtitles.length).fill(null));
+  }, []);
 
   // 解析字幕文本
   const parseText = useCallback((text) => {
-    const parsedSentences = splitIntoSentences(text)
-    setSentences(parsedSentences)
+    setTranscriptText(text);
+    const parsedSentences = splitIntoSentences(text);
+    setSentences(parsedSentences.map((sentence, index) => ({ text: sentence, index })));
 
     // 估算时间戳
-    const estimatedTimestamps = estimateTimestamps(parsedSentences, duration)
-    setTimestamps(estimatedTimestamps)
+    const estimatedTimestamps = estimateTimestamps(parsedSentences, duration);
+    setTimestamps(estimatedTimestamps);
 
     // 重置翻译
-    setTranslations(new Array(parsedSentences.length).fill(null))
-  }, [duration])
+    setTranslations(new Array(parsedSentences.length).fill(null));
+  }, [duration]);
 
   // 当持续时间变化时更新时间戳
   useEffect(() => {
-    if (sentences.length > 0) {
-      const estimatedTimestamps = estimateTimestamps(sentences, duration)
-      setTimestamps(estimatedTimestamps)
+    if (sentences.length > 0 && textSource !== 'subtitle') {
+      const estimatedTimestamps = estimateTimestamps(
+        sentences.map(s => s.text),
+        duration
+      );
+      setTimestamps(estimatedTimestamps);
     }
-  }, [duration, sentences])
+  }, [duration, sentences, textSource]);
 
   // 更新当前句子索引（根据播放时间）
   useEffect(() => {
     if (timestamps.length > 0) {
-      const index = findCurrentSentenceIndex(currentTime, timestamps)
-      setCurrentSentenceIndex(index)
+      const index = findCurrentSentenceIndex(currentTime, timestamps);
+      setCurrentSentenceIndex(index);
     }
-  }, [currentTime, timestamps])
-
-  // 自动获取字幕（当音频源变化时）
-  useEffect(() => {
-    // 检查自动生成字幕的设置
-    const autoGenerate = localStorage.getItem('auto_generate_transcript') === 'true'
-    const autoTranslate = localStorage.getItem('auto_translate') === 'true'
-
-    if (audioSource && sourceType === 'url' && autoGenerate) {
-      const loadTranscript = async () => {
-        setIsLoading(true)
-        setError('')
-
-        try {
-          // 文本来源优先级：RSS/播客 > Whisper > 手动
-          let text = null
-          let source = null
-
-          // 1. 尝试从播客 RSS 或页面获取字幕
-          if (isRssUrl(audioSource) || isPodcastUrl(audioSource)) {
-            text = await getTranscriptFromPodcast(audioSource)
-            source = 'rss'
-          }
-
-          // 2. 尝试使用 Whisper 转录（如果有 API Key）
-          if (!text && hasApiKey()) {
-            text = await getWhisperTranscription()
-            source = 'whisper'
-          }
-
-          if (text) {
-            setTranscriptText(text)
-            parseText(text)
-            setTextSource(source)
-
-            // 自动翻译（如果设置开启）
-            if (autoTranslate) {
-              await loadTranslations()
-            }
-          } else {
-            setTextSource(null)
-          }
-        } catch (error) {
-          console.error('自动获取字幕失败:', error)
-          setError('无法自动获取字幕，请手动输入')
-        } finally {
-          setIsLoading(false)
-        }
-      }
-
-      loadTranscript()
-    }
-  }, [audioSource, sourceType, parseText])
-
-  // 获取 Whisper 转录（目前使用模拟）
-  const getWhisperTranscription = async () => {
-    try {
-      const result = await mockTranscribe(duration || 30)
-      setSentences(result.sentences)
-      setTimestamps(result.sentences.map(s => ({ start: s.start, end: s.end })))
-      setTranscriptText(result.text)
-      return result.text
-    } catch (error) {
-      console.error('Whisper 转录失败:', error)
-      return null
-    }
-  }
+  }, [currentTime, timestamps]);
 
   // 处理文本提交
   const handleTextSubmit = useCallback(() => {
-    const text = textAreaRef.current?.value || ''
+    const text = textAreaRef.current?.value || '';
     if (text.trim()) {
-      parseText(text)
-      setTextSource('manual')
+      parseText(text);
+      setTextSource('manual');
     }
-    setIsEditing(false)
-  }, [parseText])
+    setIsEditing(false);
+  }, [parseText]);
+
+  // 处理字幕文件上传
+  const handleFileUpload = useCallback(async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const content = await file.text();
+      const subtitles = parseSubtitles(content, file.name);
+
+      if (subtitles.length > 0) {
+        processSubtitles(subtitles);
+        setTextSource('subtitle');
+      } else {
+        // 尝试作为纯文本解析
+        parseText(content);
+        setTextSource('manual');
+      }
+    } catch (err) {
+      setError('解析字幕文件失败');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [processSubtitles, parseText]);
 
   // 加载示例字幕
   const loadSampleText = useCallback(() => {
@@ -146,85 +167,101 @@ It demonstrates how the caption system works.
 Each sentence will be highlighted as it plays.
 You can click on any word to view details.
 Hover over words to see translations.
-This is a great tool for English learning.`
+This is a great tool for English learning.`;
 
-    textAreaRef.current?.focus()
-    textAreaRef.current?.select()
-    setTranscriptText(sample)
-  }, [])
+    textAreaRef.current?.focus();
+    textAreaRef.current?.select();
+    setTranscriptText(sample);
+  }, []);
 
   // 清空字幕
   const clearText = useCallback(() => {
-    setTranscriptText('')
-    setSentences([])
-    setTimestamps([])
-    setTranslations([])
-    setCurrentSentenceIndex(0)
-    setIsEditing(false)
-    setTextSource(null)
-  }, [])
-
-  // 格式化时间
-  const formatTime = useCallback((seconds) => {
-    if (isNaN(seconds)) return '0:00'
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.floor(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }, [])
-
-  // 获取句子的翻译
-  const getSentenceTranslation = useCallback(async (sentence, index) => {
-    try {
-      const translation = await getCachedTranslation(sentence)
-      return translation
-    } catch (error) {
-      console.error('获取句子翻译失败:', error)
-      return null
-    }
-  }, [getCachedTranslation])
+    setTranscriptText('');
+    setSentences([]);
+    setTimestamps([]);
+    setTranslations([]);
+    setCurrentSentenceIndex(0);
+    setIsEditing(false);
+    setTextSource(null);
+    setWordDefinitions({});
+  }, []);
 
   // 加载翻译
   const loadTranslations = useCallback(async () => {
-    const newTranslations = []
+    const newTranslations = [];
     for (let i = 0; i < sentences.length; i++) {
-      const translation = await getSentenceTranslation(sentences[i], i)
-      newTranslations.push(translation)
+      const translation = await getCachedTranslation(sentences[i].text);
+      newTranslations.push(translation);
     }
-    setTranslations(newTranslations)
-    setShowTranslation(true)
-  }, [sentences, getSentenceTranslation])
+    setTranslations(newTranslations);
+  }, [sentences]);
 
   // 处理单词点击
-  const handleWordClick = useCallback((word) => {
-    setSelectedWord(word)
+  const handleWordClick = useCallback(async (word, sentenceIndex) => {
+    const wordKey = `${sentenceIndex}-${word}`;
+
+    // 先检查是否已缓存该单词的定义
+    if (!wordDefinitions[wordKey]) {
+      const definition = await getCachedWordDefinition(word);
+      if (definition) {
+        setWordDefinitions(prev => ({
+          ...prev,
+          [wordKey]: definition
+        }));
+        setSelectedWordDefinition(definition);
+      }
+    } else {
+      setSelectedWordDefinition(wordDefinitions[wordKey]);
+    }
+
+    setSelectedWord(word);
+    setShowWordCard(true);
+
     // 同时也调用父组件的 onWordClick（如果有）
     if (onWordClick) {
-      onWordClick(word)
+      onWordClick(word);
     }
-  }, [onWordClick])
+  }, [wordDefinitions, onWordClick]);
 
   // 关闭单词卡片
   const closeWordCard = useCallback(() => {
-    setSelectedWord(null)
-  }, [])
+    setShowWordCard(false);
+    setSelectedWord(null);
+    setSelectedWordDefinition(null);
+  }, []);
+
+  // 处理添加到生词本
+  const handleAddToWordBook = useCallback((word, data) => {
+    console.log('添加到生词本:', word, data);
+    // 这里可以添加到生词本的逻辑
+  }, []);
 
   return (
     <div className="transcript-container">
       {/* 字幕输入和控制 */}
       <div className="transcript-controls mb-4">
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {!isEditing && transcriptText === '' && (
             <>
-              {isLoading ? (
-                <span className="loading-text">正在自动获取字幕...</span>
-              ) : (
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="btn btn-primary"
-                >
-                  粘贴字幕
-                </button>
-              )}
+              <button
+                onClick={() => setIsEditing(true)}
+                className="btn btn-primary"
+              >
+                粘贴字幕
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".srt,.vtt,.txt"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="btn btn-secondary"
+              >
+                上传字幕文件
+              </button>
             </>
           )}
 
@@ -246,21 +283,39 @@ This is a great tool for English learning.`
           )}
 
           {!isEditing && transcriptText !== '' && (
-            <button
-              onClick={() => setIsEditing(true)}
-              className="btn btn-secondary"
-            >
-              编辑
-            </button>
-          )}
-
-          {!isEditing && transcriptText !== '' && (
-            <button
-              onClick={clearText}
-              className="btn btn-danger"
-            >
-              清空
-            </button>
+            <>
+              <button
+                onClick={() => setIsEditing(true)}
+                className="btn btn-secondary"
+              >
+                编辑
+              </button>
+              <button
+                onClick={clearText}
+                className="btn btn-danger"
+              >
+                清空
+              </button>
+              <button
+                onClick={loadTranslations}
+                className="btn btn-primary"
+              >
+                加载翻译
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".srt,.vtt,.txt"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="btn btn-secondary"
+              >
+                替换字幕
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -277,21 +332,26 @@ This is a great tool for English learning.`
                      focus:outline-none focus:ring-2 focus:ring-primary"
             autoFocus
           />
-          <div className="editor-hints mt-2 text-sm text-gray-500">
-            <p>提示：</p>
-            <ul>
-              <li>• 文本会自动分割为句子</li>
-              <li>• 支持 .srt 格式字幕</li>
-              <li>• 时间戳会自动估算</li>
-            </ul>
-          </div>
         </div>
       )}
 
       {/* 文本来源说明 */}
       {textSource && transcriptText && (
         <div className="text-source-indicator mb-4">
-          字幕来源: {textSource === 'rss' && 'RSS 订阅'}{textSource === 'whisper' && 'Whisper 转录'}{textSource === 'manual' && '手动输入'}
+          字幕来源: {textSource === 'rss' && 'RSS 订阅'}
+                     {textSource === 'subtitle' && '字幕文件'}
+                     {textSource === 'gemini' && 'Gemini 转录'}
+                     {textSource === 'vibe' && 'Vibe 转录'}
+                     {textSource === 'manual' && '手动输入'}
+                     {textSource === 'mock' && '示例数据'}
+        </div>
+      )}
+
+      {/* 加载提示 */}
+      {isLoading && (
+        <div className="loading-indicator mb-4">
+          <span className="animate-spin inline-block mr-2">⟳</span>
+          正在加载字幕...
         </div>
       )}
 
@@ -302,50 +362,19 @@ This is a great tool for English learning.`
         </div>
       )}
 
-      {/* 翻译控制 */}
-      {!isEditing && sentences.length > 0 && (
-        <div className="translation-controls mb-4">
-          <button
-            onClick={loadTranslations}
-            disabled={showTranslation}
-            className="btn btn-secondary"
-          >
-            {showTranslation ? '已翻译' : '加载翻译'}
-          </button>
-        </div>
-      )}
-
-      {/* 快捷键提示 */}
-      {!isEditing && sentences.length > 0 && (
-        <div className="transcript-hints mb-4">
-          <p className="text-sm text-gray-600">
-            💡 <strong>提示：</strong>播放时字幕会自动高亮
-          </p>
-        </div>
-      )}
-
-      {/* 字幕显示区域 */}
+      {/* 字幕显示区域 - 使用虚拟化列表 */}
       {!isEditing && sentences.length > 0 && (
         <div className="transcript-content">
           <h3 className="transcript-title mb-2">字幕</h3>
-
-          {sentences.map((sentence, index) => {
-            const isCurrent = index === currentSentenceIndex
-            const timestamp = timestamps[index]
-
-            return (
-              <Sentence
-                key={index}
-                text={sentence}
-                isCurrent={isCurrent}
-                translation={translations[index]}
-                onWordClick={handleWordClick}
-                startTime={timestamp?.start}
-                endTime={timestamp?.end}
-                index={index}
-              />
-            )
-          })}
+          <SentenceList
+            sentences={sentences}
+            visibleRange={visibleRange}
+            centerIndex={centerIndex}
+            currentIndex={currentSentenceIndex}
+            translations={translations}
+            wordDefinitions={wordDefinitions}
+            onWordClick={handleWordClick}
+          />
         </div>
       )}
 
@@ -354,27 +383,32 @@ This is a great tool for English learning.`
         <div className="transcript-empty">
           <div className="empty-icon">📄</div>
           <h3>暂无字幕</h3>
-          {!hasApiKey() ? (
-            <p>请在设置中配置 OpenAI API Key 以启用自动转录功能</p>
-          ) : (
-            <p>点击"粘贴字幕"添加字幕文本</p>
+          <p>点击"粘贴字幕"或"上传字幕文件"添加字幕</p>
+          {audioSource && (
+            <p className="mt-2 text-sm text-gray-500">
+              提示：在设置中启用"自动生成英文文本"可自动转录
+            </p>
           )}
+          <button
+            onClick={loadSampleText}
+            className="btn btn-link mt-2"
+          >
+            加载示例文本
+          </button>
         </div>
       )}
 
       {/* 单词详情卡片 */}
-      {selectedWord && (
+      {showWordCard && selectedWord && selectedWordDefinition && (
         <WordCard
           word={selectedWord}
+          definition={selectedWordDefinition}
           onClose={closeWordCard}
-          onAddToWordBook={(word, data) => {
-            // 这里可以添加到生词本的逻辑
-            console.log('添加到生词本:', word, data)
-          }}
+          onAddToWordBook={handleAddToWordBook}
         />
       )}
     </div>
-  )
-}
+  );
+};
 
-export default Transcript
+export default Transcript;
