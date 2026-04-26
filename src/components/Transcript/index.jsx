@@ -43,6 +43,45 @@ const Transcript = ({
   // 生成媒体唯一键用于保存字幕
   const mediaKey = audioSource ? generateMediaKey(audioSource, sourceType) : `manual-${Date.now()}`;
 
+  // 从localStorage加载已保存的字幕状态
+  useEffect(() => {
+    const savedState = localStorage.getItem('transcript_state');
+    if (savedState) {
+      try {
+        const parsed = JSON.parse(savedState);
+        if (parsed.mediaKey === mediaKey && parsed.sentences?.length > 0) {
+          console.log('从localStorage恢复字幕状态');
+          setSentences(parsed.sentences);
+          setTimestamps(parsed.timestamps || []);
+          setTranslations(parsed.translations || []);
+          setTranscriptText(parsed.transcriptText || '');
+          setTextSource(parsed.textSource);
+          setCurrentFileName(parsed.currentFileName);
+          setCurrentSentenceIndex(parsed.currentSentenceIndex || 0);
+        }
+      } catch (error) {
+        console.error('恢复字幕状态失败:', error);
+      }
+    }
+  }, [mediaKey]);
+
+  // 保存字幕状态到localStorage
+  useEffect(() => {
+    if (sentences.length > 0 && mediaKey) {
+      const stateToSave = {
+        mediaKey,
+        sentences,
+        timestamps,
+        translations,
+        transcriptText,
+        textSource,
+        currentFileName,
+        currentSentenceIndex
+      };
+      localStorage.setItem('transcript_state', JSON.stringify(stateToSave));
+    }
+  }, [sentences, timestamps, translations, transcriptText, textSource, currentFileName, currentSentenceIndex, mediaKey]);
+
   // 使用 Hook 计算可见句子范围和居中定位
   const { visibleRange, centerIndex } = useSentencePositioning(
     currentSentenceIndex,
