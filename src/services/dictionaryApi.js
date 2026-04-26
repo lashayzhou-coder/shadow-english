@@ -31,24 +31,45 @@ const formatWordData = (data) => {
 // 获取单词释义
 export const getWordDefinition = async (word) => {
   try {
+    console.log('获取单词释义:', word)
     const response = await fetch(`${BASE_URL}/${encodeURIComponent(word)}`)
     if (!response.ok) {
       if (response.status === 404) {
-        return null
+        // 没有找到词典释义，只返回基本信息和翻译
+        console.log('词典API未找到，仅返回翻译')
+        const basicData = {
+          word,
+          phonetic: '',
+          audioUrl: '',
+          definitions: []
+        }
+        // 获取中文释义
+        try {
+          const translation = await translateWithGemini(word, 'en', 'zh-CN')
+          console.log('获取到的中文翻译:', translation)
+          basicData.chineseTranslation = translation
+        } catch (translationError) {
+          console.error('Translation error:', translationError)
+        }
+        return basicData
       }
       throw new Error('API error')
     }
     const data = await response.json()
     const formattedData = formatWordData(data[0])
+    console.log('格式化的单词数据:', formattedData)
 
     // 获取中文释义
     try {
+      console.log('开始翻译单词:', word)
       const translation = await translateWithGemini(word, 'en', 'zh-CN')
+      console.log('获取到的中文翻译:', translation)
       formattedData.chineseTranslation = translation
     } catch (translationError) {
       console.error('Translation error:', translationError)
     }
 
+    console.log('返回的完整数据:', formattedData)
     return formattedData
   } catch (error) {
     console.error('Dictionary API error:', error)
@@ -64,6 +85,7 @@ export const getCachedWordDefinition = async (word) => {
   const lowerWord = word.toLowerCase()
   const cached = cache.get(lowerWord)
   if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+    console.log('使用缓存的单词释义:', cached.data)
     return cached.data
   }
 

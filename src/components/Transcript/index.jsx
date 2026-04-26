@@ -8,6 +8,7 @@ import { getCachedTranslation } from '../../services/translationApi';
 import { getCachedWordDefinition } from '../../services/dictionaryApi';
 import { getTranscript, createManualTranscript, isPodcastSource } from '../../services/TranscriptionApi';
 import { parseSubtitles } from '../../services/SubtitleParser';
+import { saveMediaSubtitles, generateMediaKey } from '../../services/storageService';
 
 const Transcript = ({
   currentTime,
@@ -33,6 +34,9 @@ const Transcript = ({
   // 文本输入 ref
   const textAreaRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // 生成媒体唯一键用于保存字幕
+  const mediaKey = audioSource ? generateMediaKey(audioSource, sourceType) : `manual-${Date.now()}`;
 
   // 使用 Hook 计算可见句子范围和居中定位
   const { visibleRange, centerIndex } = useSentencePositioning(
@@ -102,27 +106,39 @@ const Transcript = ({
   const processSubtitles = useCallback((subtitles) => {
     if (!subtitles || subtitles.length === 0) return;
 
-    setSentences(subtitles.map((sub, index) => ({
+    const subtitlesData = subtitles.map((sub, index) => ({
       text: sub.text,
-      index
-    })));
-    setTimestamps(subtitles);
-    setTranslations(new Array(subtitles.length).fill(null));
-  }, []);
+      index,
+      start: sub.start || 0,
+      end: sub.end || 0
+    }));
+
+    setSentences(subtitlesData.map(s => ({ text: s.text, index: s.index })));
+    setTimestamps(subtitlesData);
+    setTranslations(new Array(subtitlesData.length).fill(null));
+
+    // 保存字幕
+    saveMediaSubtitles(mediaKey, subtitlesData);
+  }, [mediaKey]);
 
   // 解析字幕文本
   const parseText = useCallback((text) => {
     setTranscriptText(text);
     const parsedSentences = splitIntoSentences(text);
-    setSentences(parsedSentences.map((sentence, index) => ({ text: sentence, index })));
+    const sentencesData = parsedSentences.map((sentence, index) => ({
+      text: sentence,
+      index,
+      start: 0,
+      end: 0
+    }));
 
-    // 估算时间戳
-    const estimatedTimestamps = estimateTimestamps(parsedSentences, duration);
-    setTimestamps(estimatedTimestamps);
+    setSentences(sentencesData);
+    setTimestamps(sentencesData);
+    setTranslations(new Array(sentencesData.length).fill(null));
 
-    // 重置翻译
-    setTranslations(new Array(parsedSentences.length).fill(null));
-  }, [duration]);
+    // 保存字幕
+    saveMediaSubtitles(mediaKey, sentencesData);
+  }, [duration, mediaKey]);
 
   // 当持续时间变化时更新时间戳
   useEffect(() => {
@@ -149,6 +165,8 @@ const Transcript = ({
     if (text.trim()) {
       parseText(text);
       setTextSource('manual');
+      // 更新 mediaKey 以反映新的手动输入
+      // 可以选择不更新，或者每次手动输入都创建新的 mediaKey
     }
     setIsEditing(false);
   }, [parseText]);

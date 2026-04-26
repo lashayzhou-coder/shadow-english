@@ -5,6 +5,7 @@ import WordCard from './components/WordCard'
 import Settings from './components/Settings'
 import VocabularyList from './components/VocabularyList'
 import { getCachedWordDefinition } from './services/dictionaryApi'
+import { addRecentMedia, removeRecentMedia, getRecentMedia } from './services/storageService'
 import './App.css'
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
   const [wordDefinition, setWordDefinition] = useState(null)
   const [mediaSource, setMediaSource] = useState('')
   const [sourceType, setSourceType] = useState('url')
+  const [recentMedia, setRecentMedia] = useState([])
 
   // 监听音频播放器事件的回调
   const handleTimeUpdate = useCallback((time) => {
@@ -37,6 +39,12 @@ function App() {
 
     setSelectedWord(word)
     setWordDefinition(definition)
+  }, [])
+
+  // 加载最近记录
+  useEffect(() => {
+    const recent = getRecentMedia()
+    setRecentMedia(recent)
   }, [])
 
   return (
@@ -147,6 +155,60 @@ function App() {
             <Settings />
           </div>
         )}
+
+        {activeTab === 'recent' && (
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold mb-4">🕒 最近记录</h2>
+            {recentMedia.length === 0 ? (
+              <div className="bg-gray-100 dark:bg-gray-800 p-8 rounded-lg text-center">
+                <p className="text-gray-600 dark:text-gray-400">
+                  暂无最近记录
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
+                  加载媒体文件后会自动保存到这里
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {recentMedia.map((item, index) => (
+                  <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-gray-900 dark:text-white truncate">
+                        {item.title || (item.type === 'file' ? item.fileName : item.url)}
+                      </h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        {item.type === 'file' ? `${item.fileSize} bytes` : new Date(item.timestamp).toLocaleString()}
+                      </p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">
+                        {item.type === 'url' ? 'URL' : '本地文件'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (item.type === 'url') {
+                          setMediaSource(item.url)
+                          setSourceType('url')
+                        }
+                      }}
+                      className="ml-4 px-4 py-2 bg-primary text-white rounded-md hover:bg-indigo-600 transition-colors"
+                    >
+                      重新加载
+                    </button>
+                    <button
+                      onClick={() => {
+                        const updated = removeRecentMedia(index)
+                        setRecentMedia(updated)
+                      }}
+                      className="ml-2 px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
+                    >
+                      删除
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
       {/* Bottom Navigation */}
@@ -206,6 +268,17 @@ function App() {
             aria-label="设置"
           >
             <span className="text-sm">设置</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('recent')}
+            className={`flex flex-col items-center justify-center min-w-[60px] h-full ${
+              activeTab === 'recent'
+                ? 'text-primary'
+                : 'text-gray-500 dark:text-gray-400'
+            }`}
+            aria-label="最近记录"
+          >
+            <span className="text-sm">最近</span>
           </button>
         </div>
       </nav>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './Sentence.css';
 import { splitIntoWords, isWord } from './TextParser';
 import { translateWithGemini } from '../../services/GeminiApi';
@@ -18,26 +18,39 @@ const Sentence = ({
 
   const words = splitIntoWords(sentence.text);
 
+  useEffect(() => {
+    setTranslation(initialTranslation);
+  }, [initialTranslation]);
+
   const toggleTranslation = async () => {
-    if (!showTranslation && !translation && !isTranslating) {
-      setIsTranslating(true);
-      try {
-        const result = await translateWithGemini(sentence.text, 'en', 'zh-CN');
-        setTranslation(result);
-        if (onTranslationUpdate) {
-          onTranslationUpdate(sentenceIndex, result);
+    if (!showTranslation) {
+      // 如果还没有翻译，直接翻译
+      if (!translation && !isTranslating) {
+        setIsTranslating(true);
+        try {
+          console.log('开始翻译:', sentence.text);
+          const result = await translateWithGemini(sentence.text, 'en', 'zh-CN');
+          console.log('翻译结果:', result);
+          setTranslation(result);
+          if (onTranslationUpdate) {
+            onTranslationUpdate(sentenceIndex, result);
+          }
+        } catch (error) {
+          console.error('Translation error:', error);
+          setTranslation('翻译失败');
+        } finally {
+          setIsTranslating(false);
         }
-      } catch (error) {
-        console.error('Translation error:', error);
-      } finally {
-        setIsTranslating(false);
       }
+      setShowTranslation(true);
+    } else {
+      // 收起翻译
+      setShowTranslation(false);
     }
-    setShowTranslation(!showTranslation);
   };
 
   return (
-    <div className={`sentence-container ${isCurrent ? 'current' : ''}`}>
+    <div className={`sentence-container ${isCurrent ? 'current-sentence' : ''}`}>
       {/* 句子内容 */}
       <div className="sentence-text">
         {words.map((token, tokenIndex) => {
@@ -66,10 +79,12 @@ const Sentence = ({
         >
           {isTranslating ? '...' : (showTranslation ? '收起' : '译')}
         </button>
-        {showTranslation && translation && (
+        {showTranslation && (
           <div className="translation-content">
             <span className="translation-label">译:</span>
-            <span className="translation-text">{translation}</span>
+            <span className="translation-text">
+              {translation || (isTranslating ? '翻译中...' : '点击翻译')}
+            </span>
           </div>
         )}
       </div>
