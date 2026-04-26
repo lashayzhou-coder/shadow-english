@@ -115,8 +115,9 @@ const AudioPlayer = ({
   }, [isYouTubeUrl])
 
   // 加载媒体 URL（支持音频、视频和 YouTube）
-  const loadMediaUrl = useCallback(() => {
-    if (!urlInput.trim()) {
+  const loadMediaUrl = useCallback((mediaUrl) => {
+    const urlToLoad = mediaUrl || urlInput
+    if (!urlToLoad.trim()) {
       setError('请输入音频/视频链接')
       return
     }
@@ -124,8 +125,8 @@ const AudioPlayer = ({
     // 保存到最近记录
     const mediaItem = {
       type: 'url',
-      url: urlInput.trim(),
-      title: extractUrlTitle(urlInput.trim()),
+      url: urlToLoad.trim(),
+      title: extractUrlTitle(urlToLoad.trim()),
       timestamp: Date.now()
     }
     const newRecent = addRecentMedia(mediaItem)
@@ -149,8 +150,8 @@ const AudioPlayer = ({
     setLoadProgress(0)
 
     // 判断是否是 YouTube
-    const youtube = isYouTubeUrl(urlInput)
-    const videoId = youtube ? extractYouTubeVideoId(urlInput) : null
+    const youtube = isYouTubeUrl(urlToLoad)
+    const videoId = youtube ? extractYouTubeVideoId(urlToLoad) : null
 
     if (youtube && !videoId) {
       setError('无法识别 YouTube 视频链接，请检查链接格式')
@@ -169,7 +170,7 @@ const AudioPlayer = ({
     if (youtube && videoId) {
       // YouTube 不需要预加载，直接显示嵌入播放器
       setIsLoading(false)
-      const source = urlInput.trim()
+      const source = urlToLoad.trim()
       setMediaSource(source)
       setSourceType('url')
       if (onMediaSourceChange) {
@@ -181,7 +182,7 @@ const AudioPlayer = ({
     }
 
     // 直接修改 src 属性，保持元素存在
-    const source = urlInput.trim()
+    const source = urlToLoad.trim()
     if (video && videoRef.current) {
       videoRef.current.src = source
       videoRef.current.preload = 'metadata' // 视频使用 metadata 预加载
@@ -269,7 +270,7 @@ const AudioPlayer = ({
   const reloadRecentMedia = useCallback((item, index) => {
     if (item.type === 'url') {
       setUrlInput(item.url)
-      loadMediaUrl()
+      loadMediaUrl(item.url)
     } else if (item.type === 'file') {
       // 文件类型需要重新上传，这里只显示提示
       setError('文件类型的记录无法直接重新加载，请重新选择文件')
