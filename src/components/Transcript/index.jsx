@@ -10,7 +10,7 @@ import { translateWithGemini } from '../../services/GeminiApi';
 import { getCachedWordDefinition } from '../../services/dictionaryApi';
 import { getTranscript, createManualTranscript, isPodcastSource } from '../../services/TranscriptionApi';
 import { parseSubtitles } from '../../services/SubtitleParser';
-import { saveMediaSubtitles, generateMediaKey } from '../../services/storageService';
+import { saveMediaSubtitles, saveSubtitleFile, saveMediaTranscript, generateMediaKey } from '../../services/storageService';
 
 const Transcript = ({
   currentTime,
@@ -34,6 +34,7 @@ const Transcript = ({
   const [selectedWordDefinition, setSelectedWordDefinition] = useState(null);
   const [wordDefinitions, setWordDefinitions] = useState({});
   const [showWordCard, setShowWordCard] = useState(false);
+  const [currentFileName, setCurrentFileName] = useState(null); // 当前字幕文件名
 
   // 文本输入 ref
   const textAreaRef = useRef(null);
@@ -124,12 +125,19 @@ const Transcript = ({
     // 保存字幕
     saveMediaSubtitles(mediaKey, subtitlesData);
 
+    // 保存字幕文件（用于听写/跟读）
+    if (currentFileName) {
+      saveSubtitleFile(currentFileName, subtitlesData, []);
+    }
+    // 同时保存媒体转录
+    saveMediaTranscript(mediaKey, subtitlesData.map(s => s.text).join('\n'), subtitlesData, []);
+
     // 自动加载翻译（如果启用）
     const autoTranslate = localStorage.getItem('auto_translate') === 'true';
     if (autoTranslate && subtitlesData.length > 0) {
       autoLoadTranslations(subtitlesData);
     }
-  }, [mediaKey]);
+  }, [mediaKey, currentFileName]);
 
   // 解析字幕文本
   const parseText = useCallback((text) => {
@@ -148,6 +156,8 @@ const Transcript = ({
 
     // 保存字幕
     saveMediaSubtitles(mediaKey, sentencesData);
+    // 保存媒体转录（用于听写/跟读）
+    saveMediaTranscript(mediaKey, text, sentencesData, []);
 
     // 自动加载翻译（如果启用）
     const autoTranslate = localStorage.getItem('auto_translate') === 'true';
@@ -194,6 +204,7 @@ const Transcript = ({
 
     setIsLoading(true);
     setError('');
+    setCurrentFileName(file.name); // 保存当前文件名
 
     try {
       const content = await file.text();
@@ -240,15 +251,57 @@ This is a great tool for English learning.`;
     setWordDefinitions({});
   }, []);
 
-  // 加载翻译
+  // 加载翻译 - 使用 Gemini API Key
   const loadTranslations = useCallback(async () => {
+    if (sentences.length === 0) return;
+
+    setIsTranslating(true);
+    setTranslationProgress('开始翻译...');
     const newTranslations = [];
+
+    // 优先使用 Gemini API
+    const geminiApiKey = localStorage.getItem('gemini_api_key');
+    const useGemini = !!geminiApiKey;
+
     for (let i = 0; i < sentences.length; i++) {
-      const translation = await getCachedTranslation(sentences[i].text);
+      const sentence = sentences[i].text;
+      setTranslationProgress(`翻译中 (${i + 1}/${sentences.length})...`);
+
+      let translation = null;
+
+      if (useGemini) {
+        try {
+          translation = await translateWithGemini(sentence, 'en', 'zh-CN');
+        } catch (error) {
+          console.error('Gemini翻译失败，尝试MyMemory:', error);
+        }
+      }
+
+      if (!translation) {
+        try {
+          translation = await translateWithMyMemory(sentence, 'en', 'zh-CN');
+        } catch (error) {
+          console.error('MyMemory翻译失败:', error);
+        }
+      }
+
       newTranslations.push(translation);
+      setTranslations(prev => {
+        const updated = [...prev];
+        updated[i] = translation;
+        return updated;
+      });
     }
-    setTranslations(newTranslations);
-  }, [sentences]);
+
+    setTranslationProgress('');
+    setIsTranslating(false);
+
+    // 保存翻译结果
+    if (currentFileName) {
+      saveSubtitleFile(currentFileName, sentences, newTranslations);
+    }
+    saveMediaTranscript(mediaKey, sentences.map(s => s.text).join('\n'), sentences, newTranslations);
+  }, [sentences, mediaKey, currentFileName]);
 
   // 自动加载翻译（自动选择 Gemini 或 MyMemory）
   const autoLoadTranslations = useCallback(async (sentencesData) => {

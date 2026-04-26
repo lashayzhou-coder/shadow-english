@@ -3,7 +3,9 @@
 const STORAGE_KEYS = {
   RECENT_MEDIA: 'shadow-english-recent-media',
   MEDIA_SUBTITLES: 'shadow-english-media-subtitles',
-  VOCABULARY: 'vocabulary'
+  VOCABULARY: 'vocabulary',
+  SUBTITLE_FILES: 'shadow-english-subtitle-files',
+  MEDIA_TRANSCRIPTS: 'shadow-english-media-transcripts'
 }
 
 const MAX_RECENT_MEDIA = 3
@@ -92,6 +94,86 @@ export const saveMediaSubtitles = (mediaKey, subtitles) => {
   } catch (error) {
     console.error('保存媒体字幕失败:', error)
     return false
+  }
+}
+
+// 保存字幕文件内容（用于听写/跟读）
+export const saveSubtitleFile = (fileName, subtitles, translations = []) => {
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.SUBTITLE_FILES)
+    const files = data ? JSON.parse(data) : {}
+    // 使用文件名作为key，保存字幕内容和翻译
+    files[fileName] = {
+      subtitles,
+      translations,
+      timestamp: Date.now()
+    }
+    localStorage.setItem(STORAGE_KEYS.SUBTITLE_FILES, JSON.stringify(files))
+    return true
+  } catch (error) {
+    console.error('保存字幕文件失败:', error)
+    return false
+  }
+}
+
+// 获取字幕文件内容
+export const getSubtitleFile = (fileName) => {
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.SUBTITLE_FILES)
+    if (!data) return null
+    const files = JSON.parse(data)
+    return files[fileName] || null
+  } catch (error) {
+    console.error('获取字幕文件失败:', error)
+    return null
+  }
+}
+
+// 获取所有字幕文件列表
+export const getAllSubtitleFiles = () => {
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.SUBTITLE_FILES)
+    if (!data) return []
+    const files = JSON.parse(data)
+    return Object.keys(files).map(key => ({
+      fileName: key,
+      ...files[key]
+    }))
+  } catch (error) {
+    console.error('获取字幕文件列表失败:', error)
+    return []
+  }
+}
+
+// 保存媒体转录文本（用于听写/跟读）
+export const saveMediaTranscript = (mediaKey, transcriptText, sentences, translations = []) => {
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.MEDIA_TRANSCRIPTS)
+    const transcripts = data ? JSON.parse(data) : {}
+    transcripts[mediaKey] = {
+      transcriptText,
+      sentences,
+      translations,
+      timestamp: Date.now()
+    }
+    localStorage.setItem(STORAGE_KEYS.MEDIA_TRANSCRIPTS, JSON.stringify(transcripts))
+    return true
+  } catch (error) {
+    console.error('保存媒体转录失败:', error)
+    return false
+  }
+}
+
+// 获取媒体转录文本
+export const getMediaTranscript = (mediaKey) => {
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.MEDIA_TRANSCRIPTS)
+    if (!data) return null
+    const transcripts = JSON.parse(data)
+    return transcripts[mediaKey] || null
+  } catch (error) {
+    console.error('获取媒体转录失败:', error)
+    return null
   }
 }
 
