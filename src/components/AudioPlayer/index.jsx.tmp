@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { getRecentMedia, addRecentMedia, removeRecentMedia, generateMediaKey } from '../../services/storageService'
 import './AudioPlayer.css'
 
 const AudioPlayer = ({
@@ -41,29 +40,20 @@ const AudioPlayer = ({
   const fileObjectUrlRef = useRef(null) // 保存对象 URL 用于清理
   const intervalRef = useRef(null) // 用于 YouTube 进度更新的间隔
 
-  // 清理旧的对象 URL（防止内存泄漏）
-  const cleanupObjectUrl = useCallback(() => {
-    if (fileObjectUrlRef.current) {
-      URL.revokeObjectURL(fileObjectUrlRef.current)
-      fileObjectUrlRef.current = null
-    }
-  }, [])
-
-  // 最近加载记录
-  const [recentMedia, setRecentMedia] = useState([])
-
-  // 初始化时获取最近记录
+  // 音频引擎初始化
   useEffect(() => {
-    const recent = getRecentMedia()
-    setRecentMedia(recent)
-  }, [])
+    // 创建 AudioContext
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)()
+    audioContextRef.current = audioContext
 
-  // 判断是否是 YouTube 链接
-  const isYouTubeUrl = useCallback((url) => {
-    return url && (
-      url.includes('youtube.com') ||
-      url.includes('youtu.be')
-    )
+    // 创建增益节点
+    const gainNode = audioContext.createGain()
+    gainNode.gain.value = volume
+    gainNodeRef.current = gainNode
+
+    return () => {
+      audioContext.close()
+    }
   }, [])
 
   // 提取 YouTube 视频 ID
@@ -85,20 +75,13 @@ const AudioPlayer = ({
     return null
   }, [])
 
-  // 从 URL 中提取标题
-  const extractUrlTitle = useCallback((url) => {
-    if (isYouTubeUrl(url)) {
-      const videoId = extractYouTubeVideoId(url)
-      return `YouTube 视频 (${videoId})`
-    }
-    try {
-      const urlObj = new URL(url)
-      const pathParts = urlObj.pathname.split('/').filter(Boolean)
-      return pathParts[pathParts.length - 1] || urlObj.hostname
-    } catch {
-      return url
-    }
-  }, [isYouTubeUrl, extractYouTubeVideoId])
+  // 判断是否是 YouTube 链接
+  const isYouTubeUrl = useCallback((url) => {
+    return url && (
+      url.includes('youtube.com') ||
+      url.includes('youtu.be')
+    )
+  }, [])
 
   // 判断是否是视频文件
   const isVideoFile = useCallback((url) => {
@@ -114,22 +97,29 @@ const AudioPlayer = ({
     )
   }, [isYouTubeUrl])
 
+  // 清理旧的对象 URL（防止内存泄漏）
+  const cleanupObjectUrl = useCallback(() => {
+    if (fileObjectUrlRef.current) {
+      URL.revokeObjectURL(fileObjectUrlRef.current)
+      fileObjectUrlRef.current = null
+    }
+  }, [])
+
+  // 清理 YouTube 间隔
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+    }
+  }, [])
+
   // 加载媒体 URL（支持音频、视频和 YouTube）
   const loadMediaUrl = useCallback(() => {
     if (!urlInput.trim()) {
       setError('请输入音频/视频链接')
       return
     }
-
-    // 保存到最近记录
-    const mediaItem = {
-      type: 'url',
-      url: urlInput.trim(),
-      title: extractUrlTitle(urlInput.trim()),
-      timestamp: Date.now()
-    }
-    const newRecent = addRecentMedia(mediaItem)
-    setRecentMedia(newRecent)
 
     // 清理旧的资源
     cleanupObjectUrl()
@@ -195,7 +185,7 @@ const AudioPlayer = ({
     if (onMediaSourceChange) {
       onMediaSourceChange(source, 'url')
     }
-  }, [urlInput, cleanupObjectUrl, isYouTubeUrl, extractYouTubeVideoId, isVideoFile, extractUrlTitle])
+  }, [urlInput, cleanupObjectUrl, isYouTubeUrl, extractYouTubeVideoId, isVideoFile])
 
   // 本地文件处理（优化版）
   const handleFileInput = useCallback((e) => {
@@ -208,18 +198,6 @@ const AudioPlayer = ({
         setError(`文件过大（${(file.size / (1024 * 1024)).toFixed(1)}MB），建议使用音频文件或分割文件后再处理`)
         return
       }
-
-      // 保存到最近记录
-      const mediaItem = {
-        type: 'file',
-        fileName: file.name,
-        fileSize: file.size,
-        fileType: file.type,
-        title: file.name,
-        timestamp: Date.now()
-      }
-      const newRecent = addRecentMedia(mediaItem)
-      setRecentMedia(newRecent)
 
       // 清理旧的资源
       cleanupObjectUrl()
@@ -264,48 +242,6 @@ const AudioPlayer = ({
       }
     }
   }, [cleanupObjectUrl])
-
-  // 重新加载最近记录的媒体
-  const reloadRecentMedia = useCallback((item, index) => {
-    if (item.type === 'url') {
-      setUrlInput(item.url)
-      loadMediaUrl()
-    } else if (item.type === 'file') {
-      // 文件类型需要重新上传，这里只显示提示
-      setError('文件类型的记录无法直接重新加载，请重新选择文件')
-    }
-  }, [loadMediaUrl])
-
-  // 从最近记录中移除
-  const removeFromRecentMedia = useCallback((index) => {
-    const newRecent = removeRecentMedia(index)
-    setRecentMedia(newRecent)
-  }, [])
-
-  // 音频引擎初始化
-  useEffect(() => {
-    // 创建 AudioContext
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)()
-    audioContextRef.current = audioContext
-
-    // 创建增益节点
-    const gainNode = audioContext.createGain()
-    gainNode.gain.value = volume
-    gainNodeRef.current = gainNode
-
-    return () => {
-      audioContext.close()
-    }
-  }, [])
-
-  // 清理 YouTube 间隔
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-      }
-    }
-  }, [])
 
   // 清理资源（组件卸载时）
   useEffect(() => {
@@ -716,51 +652,6 @@ const AudioPlayer = ({
             />
           </div>
         </div>
-
-        {/* 最近加载记录 */}
-        {recentMedia.length > 0 && (
-          <div className="recent-media-section mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                📜 最近加载
-              </h4>
-              <span className="text-xs text-gray-500">点击重新加载</span>
-            </div>
-            <div className="flex flex-col gap-2">
-              {recentMedia.map((item, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between p-2 bg-white dark:bg-gray-700 rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                  onClick={() => reloadRecentMedia(item, index)}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                      {item.title || (item.type === 'file' ? item.fileName : item.url)}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                      <span className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-xs">
-                        {item.type === 'url' ? 'URL' : '文件'}
-                      </span>
-                      {item.type === 'file' && item.fileSize && (
-                        <span>{(item.fileSize / 1024 / 1024).toFixed(1)} MB</span>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      removeFromRecentMedia(index)
-                    }}
-                    className="ml-2 px-2 py-1 text-xs text-red-500 hover:bg-red-100 dark:hover:bg-red-900 rounded"
-                    aria-label="删除记录"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* 加载进度 */}
         {isLoading && loadProgress > 0 && !isYouTube && (

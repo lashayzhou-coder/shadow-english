@@ -4,8 +4,8 @@ import { setGeminiApiKey, getGeminiApiKey, hasGeminiApiKey } from '../../service
 
 const Settings = () => {
   const [geminiApiKey, setGeminiApiKeyState] = useState('')
-  const [autoGenerateTranscript, setAutoGenerateTranscript] = useState(false)
-  const [autoTranslate, setAutoTranslate] = useState(false)
+  const [autoGenerateTranscript, setAutoGenerateTranscript] = useState(true)
+  const [autoTranslate, setAutoTranslate] = useState(true)
   const [saveMessage, setSaveMessage] = useState('')
 
   // 加载设置
@@ -37,11 +37,11 @@ const Settings = () => {
   const resetSettings = useCallback(() => {
     if (confirm('确定要重置所有设置吗？')) {
       setGeminiApiKeyState('AIzaSyDAuZjMzw0OP7GMKQqsK6-NWjeohi-ohFU')
-      setAutoGenerateTranscript(false)
-      setAutoTranslate(false)
-      localStorage.removeItem('gemini_api_key')
-      localStorage.removeItem('auto_generate_transcript')
-      localStorage.removeItem('auto_translate')
+      setAutoGenerateTranscript(true)
+      setAutoTranslate(true)
+      localStorage.setItem('gemini_api_key', 'AIzaSyDAuZjMzw0OP7GMKQqsK6-NWjeohi-ohFU')
+      localStorage.setItem('auto_generate_transcript', 'true')
+      localStorage.setItem('auto_translate', 'true')
       setSaveMessage('设置已重置！')
       setTimeout(() => setSaveMessage(''), 3000)
     }
