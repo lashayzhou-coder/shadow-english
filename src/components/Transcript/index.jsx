@@ -5,6 +5,8 @@ import WordCard from '../WordCard';
 import useSentencePositioning from '../../hooks/useSentencePositioning';
 import { splitIntoSentences, estimateTimestamps, findCurrentSentenceIndex } from './TextParser';
 import { getCachedTranslation } from '../../services/translationApi';
+import { translateWithMyMemory } from '../../services/MyMemoryApi';
+import { translateWithGemini } from '../../services/GeminiApi';
 import { getCachedWordDefinition } from '../../services/dictionaryApi';
 import { getTranscript, createManualTranscript, isPodcastSource } from '../../services/TranscriptionApi';
 import { parseSubtitles } from '../../services/SubtitleParser';
@@ -25,6 +27,8 @@ const Transcript = ({
   const [translations, setTranslations] = useState([]);
   const [textSource, setTextSource] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [translationProgress, setTranslationProgress] = useState('');
   const [error, setError] = useState('');
   const [selectedWord, setSelectedWord] = useState(null);
   const [selectedWordDefinition, setSelectedWordDefinition] = useState(null);
@@ -119,6 +123,12 @@ const Transcript = ({
 
     // 保存字幕
     saveMediaSubtitles(mediaKey, subtitlesData);
+
+    // 自动加载翻译（如果启用）
+    const autoTranslate = localStorage.getItem('auto_translate') === 'true';
+    if (autoTranslate && subtitlesData.length > 0) {
+      autoLoadTranslations(subtitlesData);
+    }
   }, [mediaKey]);
 
   // 解析字幕文本
@@ -138,6 +148,12 @@ const Transcript = ({
 
     // 保存字幕
     saveMediaSubtitles(mediaKey, sentencesData);
+
+    // 自动加载翻译（如果启用）
+    const autoTranslate = localStorage.getItem('auto_translate') === 'true';
+    if (autoTranslate && sentencesData.length > 0) {
+      autoLoadTranslations(sentencesData);
+    }
   }, [duration, mediaKey]);
 
   // 当持续时间变化时更新时间戳
@@ -232,6 +248,55 @@ This is a great tool for English learning.`;
       newTranslations.push(translation);
     }
     setTranslations(newTranslations);
+  }, [sentences]);
+
+  // 自动加载翻译（自动选择 Gemini 或 MyMemory）
+  const autoLoadTranslations = useCallback(async (sentencesData) => {
+    const sentencesToTranslate = sentencesData || sentences;
+    if (sentencesToTranslate.length === 0) return;
+
+    setIsTranslating(true);
+    setTranslationProgress('开始翻译...');
+    const newTranslations = [];
+
+    // 检查是否有 Gemini API Key
+    const geminiApiKey = localStorage.getItem('gemini_api_key');
+    const useGemini = !!geminiApiKey;
+
+    for (let i = 0; i < sentencesToTranslate.length; i++) {
+      const sentence = sentencesToTranslate[i].text;
+      setTranslationProgress(`翻译中 (${i + 1}/${sentencesToTranslate.length})...`);
+
+      let translation = null;
+
+      if (useGemini) {
+        // 优先使用 Gemini API
+        try {
+          translation = await translateWithGemini(sentence, 'en', 'zh-CN');
+        } catch (error) {
+          console.error('Gemini翻译失败，尝试MyMemory:', error);
+        }
+      }
+
+      // 如果 Gemini 失败或未配置，使用 MyMemory
+      if (!translation) {
+        try {
+          translation = await translateWithMyMemory(sentence, 'en', 'zh-CN');
+        } catch (error) {
+          console.error('MyMemory翻译失败:', error);
+        }
+      }
+
+      newTranslations.push(translation);
+      setTranslations(prev => {
+        const updated = [...prev];
+        updated[i] = translation;
+        return updated;
+      });
+    }
+
+    setTranslationProgress('');
+    setIsTranslating(false);
   }, [sentences]);
 
   // 处理单词点击
@@ -399,6 +464,14 @@ This is a great tool for English learning.`;
         <div className="loading-indicator mb-4">
           <span className="animate-spin inline-block mr-2">⟳</span>
           正在加载字幕...
+        </div>
+      )}
+
+      {/* 翻译进度提示 */}
+      {isTranslating && (
+        <div className="loading-indicator mb-4 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-md">
+          <span className="animate-spin inline-block mr-2">⟳</span>
+          {translationProgress || '正在翻译...'}
         </div>
       )}
 
