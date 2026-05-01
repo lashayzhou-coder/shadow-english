@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import './ShadowRecording.css';
-import { createDeepgramTranscriber, createMediaRecorder } from '../../services/DeepgramApi';
+import { createDeepgramTranscriber } from '../../services/DeepgramApi';
 import { smartWordDiff, getDiffStats } from '../../utils/diffUtils';
 
 // 从 localStorage 读取字幕状态
@@ -81,6 +81,8 @@ const ShadowRecording = () => {
   const canvasRef = useRef(null);
   const audioRef = useRef(null);
   const transcriberRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
 
   const { sentences, currentSentenceIndex } = transcriptState;
   const currentSentence = useMemo(() => {
@@ -107,29 +109,41 @@ const ShadowRecording = () => {
       setTranscripts([]);
       setCurrentTranscript('');
       setEvaluationResult(null);
+      audioChunksRef.current = [];
 
       // 请求麦克风权限
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      // 创建录音机
-      const mediaRecorder = createMediaRecorder(stream, {
-        onDataAvailable: (data) => {
-          // 可以在此处理实时音频数据
-        },
-        onStop: (blob) => {
-          setRecordedBlob(blob);
-          const url = URL.createObjectURL(blob);
-          setRecordedUrl(url);
-        },
-        onError: (err) => {
-          console.error('录音错误:', err);
-          setError('录音失败: ' + err.message);
+      // 获取 MIME 类型
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : 'audio/mp4';
+
+      // 创建录音机 - 同时用于保存和发送
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+          // 同时发送给 Deepgram
+          if (transcriberRef.current && transcriberRef.current.sendAudio) {
+            transcriberRef.current.sendAudio(event.data);
+          }
         }
-      });
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        setRecordedBlob(blob);
+        const url = URL.createObjectURL(blob);
+        setRecordedUrl(url);
+      };
 
       // 创建 Deepgram 转录器
       transcriberRef.current = createDeepgramTranscriber({
         onTranscript: ({ transcript, is_final }) => {
+          console.log('转录结果:', transcript, 'is_final:', is_final);
           if (is_final) {
             setTranscripts(prev => [...prev, transcript]);
             setCurrentTranscript('');
@@ -139,16 +153,22 @@ const ShadowRecording = () => {
         },
         onError: (err) => {
           console.error('转录错误:', err);
-          setError('转录失败');
+          setError('转录失败: ' + err.message);
+        },
+        onSpeechStart: () => {
+          console.log('语音开始');
+        },
+        onSpeechEnd: () => {
+          console.log('语音结束');
         }
       });
 
-      // 启动转录
+      // 启动转录（返回 analyser 和发送音频的函数）
       const { audioContext, analyser: audioAnalyser } = await transcriberRef.current.start(stream);
       setAnalyser(audioAnalyser);
 
       // 开始录音
-      mediaRecorder.start();
+      mediaRecorder.start(250); // 每 250ms 发送一次
       setIsRecording(true);
 
       // 开始绘制波形
@@ -163,6 +183,9 @@ const ShadowRecording = () => {
 
   // 停止跟读
   const handleStopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
     if (transcriberRef.current) {
       transcriberRef.current.stop();
     }
@@ -235,7 +258,7 @@ const ShadowRecording = () => {
         <canvas ref={canvasRef} className="waveform-canvas" width={600} height={100} />
         {!isRecording && (
           <div className="waveform-placeholder">
-            {isRecording ? '录音中...' : '准备就绪'}
+            准备就绪
           </div>
         )}
       </div>

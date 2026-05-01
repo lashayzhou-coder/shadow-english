@@ -22,7 +22,7 @@ export const setDeepgramApiKey = (key) => {
  * 使用 Deepgram SDK 进行实时语音转文字
  * @param {MediaStream} stream - 媒体流
  * @param {Object} options - 配置选项
- * @returns {Object} - 返回 { stop, isRecording, analyser }
+ * @returns {Object} - 返回 { stop, isRecording, analyser, sendAudio }
  */
 export const createDeepgramTranscriber = (options = {}) => {
   const {
@@ -38,7 +38,6 @@ export const createDeepgramTranscriber = (options = {}) => {
   let audioContext = null;
   let analyser = null;
   let stream = null;
-  let mediaRecorder = null;
 
   const start = async (mediaStream) => {
     stream = mediaStream;
@@ -72,18 +71,7 @@ export const createDeepgramTranscriber = (options = {}) => {
       connection.on('open', () => {
         console.log('Deepgram 连接已打开');
         isRecording = true;
-
-        // 开始录音并发送音频数据
-        const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
-        mediaRecorder = new MediaRecorder(mediaStream, { mimeType });
-
-        mediaRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0 && connection) {
-            connection.sendMedia(event.data);
-          }
-        };
-
-        mediaRecorder.start(250);
+        onSpeechStart();
       });
 
       connection.on('transcript', (data) => {
@@ -102,6 +90,7 @@ export const createDeepgramTranscriber = (options = {}) => {
       connection.on('close', () => {
         console.log('Deepgram 连接已关闭');
         isRecording = false;
+        onSpeechEnd();
       });
 
       connection.on('error', (error) => {
@@ -118,15 +107,26 @@ export const createDeepgramTranscriber = (options = {}) => {
     }
   };
 
+  // 发送音频数据
+  const sendAudio = (audioData) => {
+    if (connection && connection.readyState === 1 && audioData) {
+      try {
+        connection.sendMedia(audioData);
+      } catch (e) {
+        console.error('发送音频数据失败:', e);
+      }
+    }
+  };
+
   const stop = () => {
     isRecording = false;
 
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-      mediaRecorder.stop();
-    }
-
     if (connection) {
-      connection.close();
+      try {
+        connection.close();
+      } catch (e) {
+        console.error('关闭连接失败:', e);
+      }
       connection = null;
     }
 
@@ -144,6 +144,7 @@ export const createDeepgramTranscriber = (options = {}) => {
   return {
     start,
     stop,
+    sendAudio,
     getIsRecording: () => isRecording,
     getAnalyser: () => analyser
   };
