@@ -35,6 +35,7 @@ export const createDeepgramTranscriber = (options = {}) => {
 
       // 创建 Web Audio API
       audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      console.log('[Deepgram] AudioContext sampleRate:', audioContext.sampleRate);
       analyser = audioContext.createAnalyser();
       analyser.fftSize = 256;
       analyser.minDecibels = -80;
@@ -59,15 +60,16 @@ export const createDeepgramTranscriber = (options = {}) => {
         const inputBuffer = event.inputBuffer;
         const audioData = inputBuffer.getChannelData(0);
 
-        // 转换为 Int16Array PCM
+        // 转换为 Int16Array PCM (16-bit, mono)
         const pcmData = new Int16Array(audioData.length);
         for (let i = 0; i < audioData.length; i++) {
           const s = Math.max(-1, Math.min(1, audioData[i]));
           pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
         }
 
-        // 保存用于录音回放
-        audioChunks.push(new Int16Array(pcmData));
+        // 保存用于录音回放 - 创建新的 ArrayBuffer 副本
+        const audioCopy = new Int16Array(pcmData);
+        audioChunks.push(audioCopy);
 
         // 发送音频到 Deepgram
         if (connection && isRecording) {
@@ -196,6 +198,9 @@ export const createDeepgramTranscriber = (options = {}) => {
   const getRecordedAudioBlob = () => {
     if (audioChunks.length === 0) return null;
 
+    const sampleRate = audioContext ? audioContext.sampleRate : 16000;
+    console.log('[Deepgram] 生成录音, 采样率:', sampleRate, ' chunks:', audioChunks.length);
+
     const totalLength = audioChunks.reduce((acc, chunk) => acc + chunk.length, 0);
     const mergedData = new Int16Array(totalLength);
     let offset = 0;
@@ -204,7 +209,7 @@ export const createDeepgramTranscriber = (options = {}) => {
       offset += chunk.length;
     }
 
-    return createWavBlob(mergedData, 16000);
+    return createWavBlob(mergedData, sampleRate);
   };
 
   const createWavBlob = (pcmData, sampleRate) => {
