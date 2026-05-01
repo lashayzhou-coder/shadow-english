@@ -11,6 +11,7 @@ import { getCachedWordDefinition } from '../../services/dictionaryApi';
 import { getTranscript, createManualTranscript, isPodcastSource } from '../../services/TranscriptionApi';
 import { parseSubtitles } from '../../services/SubtitleParser';
 import { saveMediaSubtitles, saveSubtitleFile, saveMediaTranscript, generateMediaKey } from '../../services/storageService';
+import { TranscriptProvider } from '../../contexts/TranscriptContext';
 
 const Transcript = ({
   currentTime,
@@ -453,51 +454,63 @@ This is a great tool for English learning.`;
     // 这里可以添加到生词本的逻辑
   }, []);
 
-  return (
-    <div className="transcript-container">
-      {/* 字幕输入和控制 */}
-      <div className="transcript-controls mb-4">
-        <div className="flex flex-wrap gap-2">
-          {!isEditing && transcriptText === '' && (
-            <>
-              <button
-                onClick={() => setIsEditing(true)}
-                className="btn btn-primary"
-              >
-                粘贴字幕
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".srt,.vtt,.txt"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="btn btn-secondary"
-              >
-                上传字幕文件
-              </button>
-            </>
-          )}
+  // 提供字幕上下文给其他组件使用
+  const transcriptContextValue = {
+    sentences,
+    currentSentenceIndex,
+    timestamps,
+    translations,
+    mediaKey,
+    textSource,
+    currentFileName
+  };
 
-          {isEditing && (
-            <>
-              <button
-                onClick={handleTextSubmit}
-                className="btn btn-primary"
-              >
-                确认
-              </button>
-              <button
-                onClick={() => setIsEditing(false)}
-                className="btn btn-secondary"
-              >
-                取消
-              </button>
-            </>
-          )}
+  return (
+    <TranscriptProvider value={transcriptContextValue}>
+      <div className="transcript-container">
+        {/* 字幕输入和控制 */}
+        <div className="transcript-controls mb-4">
+          <div className="flex flex-wrap gap-2">
+            {!isEditing && transcriptText === '' && (
+              <>
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="btn btn-primary"
+                >
+                  粘贴字幕
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".srt,.vtt,.txt"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="btn btn-secondary"
+                >
+                  上传字幕文件
+                </button>
+              </>
+            )}
+
+            {isEditing && (
+              <>
+                <button
+                  onClick={handleTextSubmit}
+                  className="btn btn-primary"
+                >
+                  确认
+                </button>
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="btn btn-secondary"
+                >
+                  取消
+                </button>
+              </>
+            )}
 
           {!isEditing && transcriptText !== '' && (
             <>
@@ -633,7 +646,8 @@ This is a great tool for English learning.`;
           onAddToWordBook={handleAddToWordBook}
         />
       )}
-    </div>
+      </div>
+    </TranscriptProvider>
   );
 };
 

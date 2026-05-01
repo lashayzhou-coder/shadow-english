@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import AudioPlayer from './components/AudioPlayer'
 import Transcript from './components/Transcript'
+import DictationMode from './components/DictationMode'
 import WordCard from './components/WordCard'
 import Settings from './components/Settings'
 import VocabularyList from './components/VocabularyList'
@@ -115,17 +116,7 @@ function App() {
 
         {/* 其他 Tab 内容 */}
         {activeTab === 'dictation' && (
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">📝 听写模式</h2>
-            <div className="bg-gray-100 dark:bg-gray-800 p-8 rounded-lg text-center">
-              <p className="text-gray-600 dark:text-gray-400">
-                听写模式即将推出！
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
-                支持逐句播放和听写练习
-              </p>
-            </div>
-          </div>
+          <DictationMode />
         )}
 
         {activeTab === 'shadow' && (
