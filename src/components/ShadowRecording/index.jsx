@@ -99,6 +99,7 @@ const ShadowRecording = () => {
 
   // 开始跟读
   const handleStartRecording = useCallback(async () => {
+    console.log('[Shadow] handleStartRecording 被调用');
     try {
       setError(null);
       setRecordedUrl(null);
@@ -106,10 +107,13 @@ const ShadowRecording = () => {
       setCurrentTranscript('');
       setEvaluationResult(null);
 
+      console.log('[Shadow] 正在请求麦克风权限...');
       // 请求麦克风权限
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log('[Shadow] 麦克风权限已获取');
 
       // 创建 Deepgram 转录器
+      console.log('[Shadow] 创建 Deepgram 转录器...');
       transcriberRef.current = createDeepgramTranscriber({
         onTranscript: ({ transcript, is_final }) => {
           console.log('[Shadow] 转录结果:', transcript, 'is_final:', is_final);
@@ -136,10 +140,13 @@ const ShadowRecording = () => {
       });
 
       // 启动转录（返回 analyser）
+      console.log('[Shadow] 启动转录...');
       const { audioContext, analyser: audioAnalyser } = await transcriberRef.current.start(stream);
+      console.log('[Shadow] 转录已启动, analyser:', audioAnalyser ? '存在' : '不存在');
       setAnalyser(audioAnalyser);
 
       setIsRecording(true);
+      console.log('[Shadow] isRecording 已设置为 true');
 
       // 开始绘制波形
       if (canvasRef.current && audioAnalyser) {
