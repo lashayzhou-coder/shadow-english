@@ -154,7 +154,8 @@ const ShadowRecording = () => {
       }
     } catch (err) {
       console.error('[Shadow] 启动跟读失败:', err);
-      setError('无法访问麦克风: ' + err.message);
+      const errorMessage = err && err.message ? err.message : (err && err.toString ? err.toString() : '未知错误');
+      setError('无法访问麦克风: ' + errorMessage);
     }
   }, []);
 
