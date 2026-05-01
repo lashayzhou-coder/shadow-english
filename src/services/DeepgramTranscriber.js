@@ -52,25 +52,28 @@ export const createDeepgramTranscriber = (options = {}) => {
         if (!isRecording) return;
 
         const inputBuffer = event.inputBuffer;
-        // 直接保存 Float32Array 副本，而不是转换后保存
-        const audioData = new Float32Array(inputBuffer.getChannelData(0));
+        const channelData = inputBuffer.getChannelData(0);
+
+        // 创建 Float32Array 副本并保存
+        const audioData = new Float32Array(channelData.length);
+        audioData.set(channelData);
         audioChunks.push(audioData);
 
         // 转换为 Int16Array PCM 并发送
         const pcmData = new Int16Array(audioData.length);
         for (let i = 0; i < audioData.length; i++) {
-          const s = Math.max(-1, Math.min(1, audioData[i]));
+          const s = audioData[i];
           pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
         }
 
         // 发送音频到 Deepgram
         if (connection && isRecording) {
           try {
-            const arrayBuffer = pcmData.buffer.slice(
-              pcmData.byteOffset,
-              pcmData.byteOffset + pcmData.byteLength
-            );
-            connection.sendMedia(arrayBuffer);
+            // 创建 PCM 数据的副本再发送
+            const sendBuffer = new ArrayBuffer(pcmData.length * 2);
+            const sendView = new Int16Array(sendBuffer);
+            sendView.set(pcmData);
+            connection.sendMedia(sendBuffer);
           } catch (e) {
             console.error('[Deepgram] 发送音频失败:', e);
           }
