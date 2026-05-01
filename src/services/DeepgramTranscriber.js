@@ -91,6 +91,7 @@ export const createDeepgramTranscriber = (options = {}) => {
 
       ws = new WebSocket(url);
 
+      // 设置事件处理器
       ws.onopen = () => {
         console.log('[Deepgram] WebSocket 已连接');
         isRecording = true;
@@ -131,23 +132,26 @@ export const createDeepgramTranscriber = (options = {}) => {
 
       // 等待连接打开
       await new Promise((resolve, reject) => {
-        if (!ws) {
-          reject(new Error('WebSocket 未创建'));
-          return;
-        }
         if (ws.readyState === WebSocket.OPEN) {
           resolve();
           return;
         }
+        if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+          reject(new Error('连接失败, readyState: ' + ws.readyState));
+          return;
+        }
+        const originalOnopen = ws.onopen;
+        const originalOnerror = ws.onerror;
         ws.onopen = () => {
           console.log('[Deepgram] 连接已打开');
           resolve();
         };
         ws.onerror = (err) => {
+          console.error('[Deepgram] 连接错误:', err);
           reject(err);
         };
         // 超时
-        setTimeout(() => reject(new Error('连接超时')), 10000);
+        setTimeout(() => reject(new Error('连接超时 (10s)')), 10000);
       });
 
       return { audioContext, analyser };
