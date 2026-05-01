@@ -45,7 +45,8 @@ export const createDeepgramTranscriber = (options = {}) => {
 
     try {
       const apiKey = getDeepgramApiKey();
-      const deepgram = new DeepgramClient(apiKey);
+      console.log('初始化 Deepgram，API Key 长度:', apiKey ? apiKey.length : 0);
+      const deepgram = new DeepgramClient({ apiKey });
 
       // 创建 Web Audio API 用于波形可视化
       audioContext = new (window.AudioContext || window.webkitAudioContext)();
