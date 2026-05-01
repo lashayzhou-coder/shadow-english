@@ -137,28 +137,49 @@ export const createDeepgramTranscriber = (options = {}) => {
       };
 
       // 等待连接打开
-      await new Promise((resolve, reject) => {
+      const connectionPromise = new Promise((resolve, reject) => {
+        console.log('[Deepgram] 等待连接完成, 当前 readyState:', ws.readyState);
+
         if (ws.readyState === WebSocket.OPEN) {
+          console.log('[Deepgram] 连接已打开（同步）');
           resolve();
           return;
         }
         if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+          console.log('[Deepgram] 连接已失败, readyState:', ws.readyState);
           reject(new Error('连接失败, readyState: ' + ws.readyState));
           return;
         }
-        const originalOnopen = ws.onopen;
-        const originalOnerror = ws.onerror;
-        ws.onopen = () => {
+
+        const onOpenHandler = () => {
           console.log('[Deepgram] 连接已打开');
+          ws.removeEventListener('open', onOpenHandler);
+          ws.removeEventListener('error', onErrorHandler);
           resolve();
         };
-        ws.onerror = (err) => {
+        const onErrorHandler = (err) => {
           console.error('[Deepgram] 连接错误:', err);
+          ws.removeEventListener('open', onOpenHandler);
+          ws.removeEventListener('error', onErrorHandler);
           reject(err);
         };
+        ws.addEventListener('open', onOpenHandler);
+        ws.addEventListener('error', onErrorHandler);
+
         // 超时
-        setTimeout(() => reject(new Error('连接超时 (10s)')), 10000);
+        setTimeout(() => {
+          ws.removeEventListener('open', onOpenHandler);
+          ws.removeEventListener('error', onErrorHandler);
+          reject(new Error('连接超时 (10s)'));
+        }, 10000);
       });
+
+      try {
+        await connectionPromise;
+      } catch (err) {
+        console.error('[Deepgram] 连接失败:', err);
+        throw err;
+      }
 
       return { audioContext, analyser };
     } catch (error) {
