@@ -142,35 +142,35 @@ export const createDeepgramTranscriber = (options = {}) => {
       ws.onerror = handleError;
 
       // 等待连接打开
-      const connectionPromise = new Promise((resolve, reject) => {
+      if (ws.readyState !== WebSocket.OPEN) {
         console.log('[Deepgram] 等待连接完成, 当前 readyState:', ws.readyState);
 
-        if (ws.readyState === WebSocket.OPEN) {
-          console.log('[Deepgram] 连接已打开（同步）');
-          resolve();
-          return;
-        }
-        if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
-          console.log('[Deepgram] 连接已失败, readyState:', ws.readyState);
-          reject(new Error('连接失败, readyState: ' + ws.readyState));
-          return;
-        }
+        // 使用 one-time 事件监听器
+        await new Promise((resolve, reject) => {
+          const onOpen = () => {
+            console.log('[Deepgram] 连接已打开');
+            ws.removeEventListener('open', onOpen);
+            ws.removeEventListener('error', onError);
+            resolve();
+          };
+          const onError = (err) => {
+            console.error('[Deepgram] 连接错误:', err);
+            ws.removeEventListener('open', onOpen);
+            ws.removeEventListener('error', onError);
+            reject(err);
+          };
+          ws.addEventListener('open', onOpen);
+          ws.addEventListener('error', onError);
 
-        // 超时
-        const timeout = setTimeout(() => {
-          clearTimeout(timeout);
-          if (ws.readyState !== WebSocket.OPEN) {
-            console.log('[Deepgram] 连接超时');
+          // 超时
+          setTimeout(() => {
+            ws.removeEventListener('open', onOpen);
+            ws.removeEventListener('error', onError);
             reject(new Error('连接超时 (10s)'));
-          }
-        }, 10000);
-      });
-
-      try {
-        await connectionPromise;
-      } catch (err) {
-        console.error('[Deepgram] 连接失败:', err);
-        throw err;
+          }, 10000);
+        });
+      } else {
+        console.log('[Deepgram] 连接已打开（同步）');
       }
 
       return { audioContext, analyser };
