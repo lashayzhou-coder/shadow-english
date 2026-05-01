@@ -72,6 +72,22 @@
   font-size: 0.875rem;
 }
 
+.waveform-status {
+  position: absolute;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.waveform-status.recording {
+  color: #ef4444;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 /* 控制按钮 */
 .recording-controls {
   display: flex;
@@ -146,6 +162,15 @@
 .transcript-text .interim {
   color: #9ca3af;
   font-style: italic;
+}
+
+.transcript-text .final-transcript {
+  color: #111827;
+  font-weight: 500;
+}
+
+.dark .transcript-text .final-transcript {
+  color: #f9fafb;
 }
 
 /* 录音回放 */

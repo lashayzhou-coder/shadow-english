@@ -109,8 +109,9 @@ export const createDeepgramTranscriber = (options = {}) => {
 
   // 发送音频数据
   const sendAudio = (audioData) => {
-    if (connection && connection.readyState === 1 && audioData) {
+    if (connection && audioData) {
       try {
+        // Deepgram SDK 的 V1Socket 有 sendMedia 方法
         connection.sendMedia(audioData);
       } catch (e) {
         console.error('发送音频数据失败:', e);

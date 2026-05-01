@@ -77,7 +77,6 @@ const ShadowRecording = () => {
   const [transcriptState, setTranscriptState] = useState(loadTranscriptState);
   const [evaluationResult, setEvaluationResult] = useState(null);
   const [error, setError] = useState(null);
-  const [allTranscripts, setAllTranscripts] = useState(''); // 累积所有转录结果
 
   const canvasRef = useRef(null);
   const audioRef = useRef(null);
@@ -110,7 +109,6 @@ const ShadowRecording = () => {
       setTranscripts([]);
       setCurrentTranscript('');
       setEvaluationResult(null);
-      setAllTranscripts('');
       audioChunksRef.current = [];
 
       // 请求麦克风权限
@@ -145,11 +143,11 @@ const ShadowRecording = () => {
       // 创建 Deepgram 转录器
       transcriberRef.current = createDeepgramTranscriber({
         onTranscript: ({ transcript, is_final }) => {
-          console.log('转录结果:', transcript, 'is_final:', is_final);
+          console.log('[Deepgram] 转录:', transcript, 'is_final:', is_final);
           if (is_final && transcript) {
             setTranscripts(prev => {
               const newTranscripts = [...prev, transcript];
-              setAllTranscripts(newTranscripts.join(' '));
+              console.log('[Deepgram] 累积转录:', newTranscripts);
               return newTranscripts;
             });
             setCurrentTranscript('');
@@ -158,23 +156,23 @@ const ShadowRecording = () => {
           }
         },
         onError: (err) => {
-          console.error('转录错误:', err);
+          console.error('[Deepgram] 转录错误:', err);
           setError('转录失败: ' + err.message);
         },
         onSpeechStart: () => {
-          console.log('语音开始');
+          console.log('[Deepgram] 语音开始检测');
         },
         onSpeechEnd: () => {
-          console.log('语音结束');
+          console.log('[Deepgram] 语音结束检测');
         }
       });
 
-      // 启动转录（返回 analyser 和发送音频的函数）
+      // 启动转录
       const { audioContext, analyser: audioAnalyser } = await transcriberRef.current.start(stream);
       setAnalyser(audioAnalyser);
 
       // 开始录音
-      mediaRecorder.start(250); // 每 250ms 发送一次
+      mediaRecorder.start(250);
       setIsRecording(true);
 
       // 开始绘制波形
@@ -189,6 +187,8 @@ const ShadowRecording = () => {
 
   // 停止跟读
   const handleStopRecording = useCallback(() => {
+    console.log('[Shadow] 停止跟读');
+
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
@@ -198,49 +198,43 @@ const ShadowRecording = () => {
     setIsRecording(false);
     setAnalyser(null);
 
-    // 评估：优先使用 allTranscripts（所有累积的转录结果），其次是 transcripts
-    const finalTranscript = allTranscripts || transcripts.join(' ');
-    console.log('评估 - currentSentence:', currentSentence);
-    console.log('评估 - finalTranscript:', finalTranscript);
-    console.log('评估 - transcripts count:', transcripts.length);
+    // 评估
+    const finalTranscript = transcripts.join(' ').trim();
+    console.log('[Shadow] 评估 - 原文:', currentSentence);
+    console.log('[Shadow] 评估 - 转录:', finalTranscript);
+    console.log('[Shadow] 评估 - 转录片段数:', transcripts.length);
 
-    if (currentSentence && finalTranscript.trim()) {
-      const userWords = finalTranscript.trim().split(/\s+/).filter(w => w.length > 0);
+    if (currentSentence) {
       const originalWords = currentSentence.split(/\s+/).filter(w => w.length > 0);
 
-      console.log('评估 - userWords:', userWords);
-      console.log('评估 - originalWords:', originalWords);
+      if (finalTranscript) {
+        const userWords = finalTranscript.split(/\s+/).filter(w => w.length > 0);
+        console.log('[Shadow] 评估 - 原文词数:', originalWords.length);
+        console.log('[Shadow] 评估 - 用户词数:', userWords.length);
 
-      if (userWords.length > 0 && originalWords.length > 0) {
         const diffResults = smartWordDiff(originalWords, userWords);
         const stats = getDiffStats(diffResults);
 
-        console.log('评估结果 - diffResults:', diffResults);
-        console.log('评估结果 - stats:', stats);
+        console.log('[Shadow] 评估结果:', stats);
 
         setEvaluationResult({
           diffResults,
           stats,
-          transcript: finalTranscript
+          transcript: finalTranscript,
+          originalText: currentSentence
         });
-      } else if (userWords.length === 0) {
-        // 用户没有输入任何词
+      } else {
+        // 无转录结果
+        console.log('[Shadow] 无转录结果');
         setEvaluationResult({
           diffResults: originalWords.map(word => ({ type: 'missing', original: word })),
           stats: { correct: 0, wrong: 0, missing: originalWords.length, extra: 0, total: originalWords.length, score: 0 },
-          transcript: ''
+          transcript: '',
+          originalText: currentSentence
         });
       }
-    } else if (currentSentence && !finalTranscript.trim()) {
-      // 有原文但没有转录结果
-      const originalWords = currentSentence.split(/\s+/).filter(w => w.length > 0);
-      setEvaluationResult({
-        diffResults: originalWords.map(word => ({ type: 'missing', original: word })),
-        stats: { correct: 0, wrong: 0, missing: originalWords.length, extra: 0, total: originalWords.length, score: 0 },
-        transcript: ''
-      });
     }
-  }, [currentSentence, transcripts, allTranscripts]);
+  }, [currentSentence, transcripts]);
 
   // 播放录音
   const handlePlayRecording = useCallback(() => {
@@ -264,6 +258,44 @@ const ShadowRecording = () => {
     setIsPlaying(false);
   }, []);
 
+  // 渲染对比结果
+  const renderComparison = (results, type) => {
+    return results.map((item, index) => {
+      if (type === 'original') {
+        if (item.type === 'extra') return null;
+        return (
+          <span key={index} className={`diff-word diff-${item.type}`}>
+            {item.original}
+          </span>
+        );
+      } else {
+        if (item.type === 'missing') {
+          return (
+            <span key={index} className="diff-word diff-missing" title="原文中缺失">
+              ☐
+            </span>
+          );
+        }
+        if (item.type === 'extra') {
+          return (
+            <span key={index} className="diff-word diff-extra">
+              {item.user}
+            </span>
+          );
+        }
+        return (
+          <span
+            key={index}
+            className={`diff-word diff-${item.type}`}
+            title={item.type === 'correct' ? '点击加入生词本' : ''}
+          >
+            {item.user}
+          </span>
+        );
+      }
+    });
+  };
+
   return (
     <div className="shadow-recording-container">
       <div className="shadow-header">
@@ -279,7 +311,7 @@ const ShadowRecording = () => {
       {/* 当前句子显示 */}
       {currentSentence && (
         <div className="current-sentence-box">
-          <div className="sentence-label">📍 当前句子</div>
+          <div className="sentence-label">📍 当前句子（原文）</div>
           <div className="sentence-text-display">
             {currentSentence}
           </div>
@@ -289,6 +321,11 @@ const ShadowRecording = () => {
       {/* 波形画布 */}
       <div className="waveform-container">
         <canvas ref={canvasRef} className="waveform-canvas" width={600} height={100} />
+        {isRecording && (
+          <div className="waveform-status recording">
+            🔴 录音中...
+          </div>
+        )}
         {!isRecording && (
           <div className="waveform-placeholder">
             准备就绪
@@ -311,7 +348,7 @@ const ShadowRecording = () => {
             className="btn btn-danger btn-large"
             onClick={handleStopRecording}
           >
-            ⏹️ 停止跟读
+            ⏹️ 停止并评估
           </button>
         )}
       </div>
@@ -326,10 +363,10 @@ const ShadowRecording = () => {
       {/* 实时转录显示 */}
       {(currentTranscript || transcripts.length > 0) && (
         <div className="transcript-section">
-          <h3>🔤 转录结果</h3>
+          <h3>🔤 识别内容</h3>
           <div className="transcript-text">
             {transcripts.map((t, i) => (
-              <span key={i}>{t} </span>
+              <span key={i} className="final-transcript">{t} </span>
             ))}
             {currentTranscript && (
               <span className="interim">{currentTranscript}</span>
@@ -368,7 +405,7 @@ const ShadowRecording = () => {
       {evaluationResult && (
         <div className="evaluation-section">
           <div className="result-header">
-            <h3>📊 发音评估</h3>
+            <h3>📊 发音评估结果</h3>
             <div className="score-display">
               <span className="score-label">得分</span>
               <span className="score-value">{evaluationResult.stats.score}</span>
@@ -385,23 +422,15 @@ const ShadowRecording = () => {
 
           <div className="comparison-box">
             <div className="comparison-row">
-              <span className="comparison-label">原文：</span>
+              <span className="comparison-label">👆 原文：</span>
               <div className="comparison-content original">
-                {evaluationResult.diffResults.map((item, index) => (
-                  <span key={index} className={`diff-word diff-${item.type}`}>
-                    {item.original || item.user}
-                  </span>
-                ))}
+                {renderComparison(evaluationResult.diffResults, 'original')}
               </div>
             </div>
             <div className="comparison-row">
-              <span className="comparison-label">你说：</span>
+              <span className="comparison-label">🎤 跟读：</span>
               <div className="comparison-content user">
-                {evaluationResult.diffResults.map((item, index) => (
-                  <span key={index} className={`diff-word diff-${item.type}`}>
-                    {item.user || item.original}
-                  </span>
-                ))}
+                {renderComparison(evaluationResult.diffResults, 'user')}
               </div>
             </div>
           </div>
@@ -409,8 +438,8 @@ const ShadowRecording = () => {
           <div className="legend">
             <span>🟢 绿色 = 正确</span>
             <span>🔴 红色 = 错误</span>
-            <span>🟡 黄色 = 缺失</span>
-            <span>🟠 橙色 = 多余</span>
+            <span>🟡 黄色 = 缺失（原文中没有）</span>
+            <span>🟠 橙色 = 多余（原文没有）</span>
           </div>
         </div>
       )}
