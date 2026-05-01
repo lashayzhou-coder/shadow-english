@@ -47,22 +47,36 @@ const Transcript = ({
 
   // 从localStorage加载已保存的字幕状态
   useEffect(() => {
+    // 优先使用当前 mediaKey 恢复
     const savedState = localStorage.getItem('transcript_state');
     if (savedState) {
       try {
         const parsed = JSON.parse(savedState);
+        // 优先匹配当前 mediaKey
         if (parsed.mediaKey === mediaKey && parsed.sentences?.length > 0) {
-          console.log('从localStorage恢复字幕状态');
-          setIsRestoring(true); // 标记开始恢复，防止 currentTime effect 覆盖
+          console.log('从localStorage恢复字幕状态 (匹配当前媒体)');
+          setIsRestoring(true);
           setSentences(parsed.sentences);
           setTimestamps(parsed.timestamps || []);
           setTranslations(parsed.translations || []);
           setTranscriptText(parsed.transcriptText || '');
           setTextSource(parsed.textSource);
           setCurrentFileName(parsed.currentFileName);
-          // 恢复当前句子索引（这会在 isRestoring 为 true 时被记录）
           setCurrentSentenceIndex(parsed.currentSentenceIndex || 0);
-          // 恢复完成后清除标记，允许 currentTime effect 正常工作
+          setTimeout(() => setIsRestoring(false), 100);
+          return;
+        }
+        // 如果没有匹配但有保存的字幕，也尝试恢复（用于切换页面后）
+        if (parsed.sentences?.length > 0 && sentences.length === 0) {
+          console.log('从localStorage恢复字幕状态 (通用恢复)');
+          setIsRestoring(true);
+          setSentences(parsed.sentences);
+          setTimestamps(parsed.timestamps || []);
+          setTranslations(parsed.translations || []);
+          setTranscriptText(parsed.transcriptText || '');
+          setTextSource(parsed.textSource);
+          setCurrentFileName(parsed.currentFileName);
+          setCurrentSentenceIndex(parsed.currentSentenceIndex || 0);
           setTimeout(() => setIsRestoring(false), 100);
         }
       } catch (error) {

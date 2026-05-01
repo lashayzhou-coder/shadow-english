@@ -4,18 +4,18 @@ import { useTranscript } from '../../contexts/TranscriptContext';
 import { smartWordDiff, getDiffStats } from '../../utils/diffUtils';
 
 const DictationMode = () => {
-  const { sentences, currentSentenceIndex, translations } = useTranscript();
+  const { sentences, currentSentenceIndex } = useTranscript();
 
   const [userInput, setUserInput] = useState('');
-  const [showDetail, setShowDetail] = useState(false);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
 
-  // 当前句子
+  // 当前句子（只在提交后显示）
   const currentSentence = useMemo(() => {
-    if (sentences.length > 0 && currentSentenceIndex < sentences.length) {
+    if (hasSubmitted && sentences.length > 0 && currentSentenceIndex < sentences.length) {
       return sentences[currentSentenceIndex].text;
     }
     return '';
-  }, [sentences, currentSentenceIndex]);
+  }, [hasSubmitted, sentences, currentSentenceIndex]);
 
   // 分词后的原文
   const originalWords = useMemo(() => {
@@ -27,17 +27,23 @@ const DictationMode = () => {
     return userInput.trim().split(/\s+/).filter(w => w.length > 0);
   }, [userInput]);
 
-  // 实时 diff 结果
+  // Diff 结果（只在提交后计算）
   const diffResults = useMemo(() => {
-    if (!currentSentence || userInput.trim() === '') return [];
+    if (!hasSubmitted || !currentSentence || userInput.trim() === '') return [];
     return smartWordDiff(originalWords, userWords);
-  }, [originalWords, userWords]);
+  }, [hasSubmitted, originalWords, userWords]);
 
-  // 实时得分统计
+  // 得分统计
   const stats = useMemo(() => {
     if (diffResults.length === 0) return null;
     return getDiffStats(diffResults);
   }, [diffResults]);
+
+  // 处理提交对照
+  const handleSubmit = useCallback(() => {
+    if (!userInput.trim()) return;
+    setHasSubmitted(true);
+  }, [userInput]);
 
   // 处理点击单词添加到生词本
   const handleWordClick = useCallback((word, type) => {
@@ -65,8 +71,11 @@ const DictationMode = () => {
   // 处理重置
   const handleReset = useCallback(() => {
     setUserInput('');
-    setShowDetail(false);
+    setHasSubmitted(false);
   }, []);
+
+  // 判断是否有字幕可供参考
+  const hasSubtitles = sentences.length > 0;
 
   return (
     <div className="dictation-container">
@@ -74,25 +83,9 @@ const DictationMode = () => {
         <h2 className="text-xl font-semibold mb-2">📝 听写模式</h2>
         <div className="dictation-info">
           <span>字幕句数: {sentences.length}</span>
-          <span>当前句子: {currentSentenceIndex + 1} / {sentences.length}</span>
-          {stats && (
-            <span className="live-score">
-              实时得分: {stats.score}%
-            </span>
+          {hasSubtitles && (
+            <span>当前句子: {currentSentenceIndex + 1} / {sentences.length}</span>
           )}
-        </div>
-      </div>
-
-      {/* 当前播放的句子 */}
-      <div className="current-sentence-box">
-        <div className="sentence-label">
-          <span>📍 当前句子</span>
-          <span className="sentence-time">
-            {currentSentence ? '播放中...' : '等待字幕'}
-          </span>
-        </div>
-        <div className="sentence-text-display">
-          {currentSentence || '暂无字幕，请先在播放器页面添加字幕'}
         </div>
       </div>
 
@@ -103,31 +96,75 @@ const DictationMode = () => {
           className="dictation-textarea"
           value={userInput}
           onChange={(e) => setUserInput(e.target.value)}
-          placeholder="在此输入英文，实时对比结果..."
-          rows={3}
+          placeholder="在此输入英文..."
+          rows={4}
+          disabled={hasSubmitted}
         />
       </div>
 
-      {/* 实时比对结果 */}
-      {userInput.trim() && (
-        <div className="live-comparison">
-          {/* 得分统计 */}
-          {stats && (
-            <div className="score-summary">
-              <div className="score-bar">
-                <div
-                  className="score-fill"
-                  style={{ width: `${stats.score}%` }}
-                />
-              </div>
-              <div className="score-details">
-                <span className="stat correct">🟢 {stats.correct}</span>
-                <span className="stat wrong">🔴 {stats.wrong}</span>
-                <span className="stat missing">🟡 {stats.missing}</span>
-                <span className="stat extra">🟠 {stats.extra}</span>
-              </div>
+      {/* 操作按钮 */}
+      <div className="button-group">
+        {!hasSubmitted ? (
+          <>
+            <button
+              className="btn btn-primary"
+              onClick={handleSubmit}
+              disabled={!userInput.trim() || !hasSubtitles}
+            >
+              提交对照
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={handleReset}
+              disabled={!userInput.trim()}
+            >
+              清空
+            </button>
+          </>
+        ) : (
+          <button
+            className="btn btn-secondary"
+            onClick={handleReset}
+          >
+            继续听写
+          </button>
+        )}
+      </div>
+
+      {/* 提示信息 */}
+      {!hasSubtitles && !hasSubmitted && (
+        <div className="dictation-hint">
+          <p>请先在播放器页面加载媒体文件并上传字幕</p>
+        </div>
+      )}
+
+      {/* 提交后的对比结果 */}
+      {hasSubmitted && currentSentence && (
+        <div className="dictation-result-section">
+          {/* 当前句子 */}
+          <div className="current-sentence-box">
+            <div className="sentence-label">📍 当前句子</div>
+            <div className="sentence-text-display">
+              {currentSentence}
             </div>
-          )}
+          </div>
+
+          {/* 得分统计 */}
+          <div className="result-header">
+            <h3>对照结果</h3>
+            <div className="score-display">
+              <span className="score-label">得分</span>
+              <span className="score-value">{stats.score}</span>
+              <span className="score-percent">%</span>
+            </div>
+          </div>
+
+          <div className="stats-bar">
+            <span className="stat correct">🟢 正确: {stats.correct}</span>
+            <span className="stat wrong">🔴 错误: {stats.wrong}</span>
+            <span className="stat missing">🟡 缺失: {stats.missing}</span>
+            <span className="stat extra">🟠 多余: {stats.extra}</span>
+          </div>
 
           {/* 对比展示 */}
           <div className="comparison-box">
@@ -181,24 +218,6 @@ const DictationMode = () => {
             <span>🟡 黄色 = 缺失</span>
             <span>🟠 橙色 = 多余</span>
           </div>
-        </div>
-      )}
-
-      {/* 操作按钮 */}
-      <div className="button-group">
-        <button
-          className="btn btn-secondary"
-          onClick={handleReset}
-          disabled={!userInput.trim()}
-        >
-          清空
-        </button>
-      </div>
-
-      {/* 提示信息 */}
-      {!currentSentence && (
-        <div className="dictation-hint">
-          <p>请先在「播放器」页面加载媒体文件并上传字幕</p>
         </div>
       )}
     </div>
