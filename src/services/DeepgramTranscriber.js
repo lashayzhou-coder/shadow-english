@@ -90,7 +90,7 @@ export const createDeepgramTranscriber = (options = {}) => {
 
       // 连接 Deepgram WebSocket
       const sampleRate = 16000;
-      const url = `wss://api.deepgram.com/v1/listen?punctuate=true&interim_results=${interim}&profanity_filter=false&smart_format=true&model=nova-2&sample_rate=${sampleRate}&key=${encodeURIComponent(apiKey)}`;
+      const url = `wss://api.deepgram.com/v1/listen?punctuate=true&interim_results=${interim}&profanity_filter=false&smart_format=true&model=nova-2&sample_rate=${sampleRate}&api_key=${encodeURIComponent(apiKey)}`;
 
       console.log('[Deepgram] 正在连接 WebSocket...');
 
