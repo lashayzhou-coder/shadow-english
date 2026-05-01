@@ -16,16 +16,13 @@ export const createDeepgramTranscriber = (options = {}) => {
   let audioContext = null;
   let analyser = null;
   let sourceNode = null;
-  let processorNode = null;
   let mediaStream = null;
-  let audioChunks = [];
+  let audioChunks = [];  // 存储 Float32Array chunks (原始采样数据)
   let connection = null;
-  let reconnectAttempts = 0;
-  const maxReconnectAttempts = 3;
+  let actualSampleRate = 48000;  // 默认浏览器采样率
 
   const start = async (stream) => {
     console.log('[Deepgram] start() 被调用');
-    console.log('[Deepgram] stream:', stream ? '存在' : '不存在');
     mediaStream = stream;
     audioChunks = [];
 
@@ -33,9 +30,11 @@ export const createDeepgramTranscriber = (options = {}) => {
       const apiKey = getDeepgramApiKey();
       console.log('[Deepgram] API Key 长度:', apiKey ? apiKey.length : 0);
 
-      // 创建 Web Audio API
+      // 创建 Web Audio API - 用于波形分析
       audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      console.log('[Deepgram] AudioContext sampleRate:', audioContext.sampleRate);
+      actualSampleRate = audioContext.sampleRate;
+      console.log('[Deepgram] AudioContext sampleRate:', actualSampleRate);
+
       analyser = audioContext.createAnalyser();
       analyser.fftSize = 256;
       analyser.minDecibels = -80;
@@ -44,32 +43,25 @@ export const createDeepgramTranscriber = (options = {}) => {
       sourceNode = audioContext.createMediaStreamSource(stream);
       sourceNode.connect(analyser);
 
-      // 静音但保持音频图连接
-      const gainNode = audioContext.createGain();
-      gainNode.gain.value = 0;
-      sourceNode.connect(gainNode);
-      gainNode.connect(audioContext.destination);
+      // 创建 ScriptProcessor 来捕获 PCM 数据
+      const scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+      sourceNode.connect(scriptProcessor);
+      scriptProcessor.connect(audioContext.destination);
 
-      // 创建 ScriptProcessor 用于采集 PCM 数据
-      const bufferSize = 4096;
-      processorNode = audioContext.createScriptProcessor(bufferSize, 1, 1);
-
-      processorNode.onaudioprocess = (event) => {
+      scriptProcessor.onaudioprocess = (event) => {
         if (!isRecording) return;
 
         const inputBuffer = event.inputBuffer;
-        const audioData = inputBuffer.getChannelData(0);
+        // 直接保存 Float32Array 副本，而不是转换后保存
+        const audioData = new Float32Array(inputBuffer.getChannelData(0));
+        audioChunks.push(audioData);
 
-        // 转换为 Int16Array PCM (16-bit, mono)
+        // 转换为 Int16Array PCM 并发送
         const pcmData = new Int16Array(audioData.length);
         for (let i = 0; i < audioData.length; i++) {
           const s = Math.max(-1, Math.min(1, audioData[i]));
           pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
         }
-
-        // 保存用于录音回放 - 创建新的 ArrayBuffer 副本
-        const audioCopy = new Int16Array(pcmData);
-        audioChunks.push(audioCopy);
 
         // 发送音频到 Deepgram
         if (connection && isRecording) {
@@ -79,15 +71,11 @@ export const createDeepgramTranscriber = (options = {}) => {
               pcmData.byteOffset + pcmData.byteLength
             );
             connection.sendMedia(arrayBuffer);
-            console.log('[Deepgram] 已发送音频数据, 大小:', pcmData.length * 2, '字节');
           } catch (e) {
             console.error('[Deepgram] 发送音频失败:', e);
           }
         }
       };
-
-      sourceNode.connect(processorNode);
-      processorNode.connect(audioContext.destination);
 
       // 创建 Deepgram 连接（使用 SDK）
       console.log('[Deepgram] 创建 Deepgram 连接...');
@@ -104,13 +92,9 @@ export const createDeepgramTranscriber = (options = {}) => {
         encoding: 'linear16'
       });
 
-      console.log('[Deepgram] 连接对象已创建, readyState:', connection.readyState);
+      console.log('[Deepgram] 连接对象已创建');
 
-      // 调用 connect() 启动连接
-      connection.connect();
-      console.log('[Deepgram] connect() 已调用');
-
-      // 设置事件处理器（在连接打开后）
+      // 设置事件处理器
       connection.on('transcript', (data) => {
         const transcript = data.channel?.alternatives?.[0]?.transcript;
         const is_final = data.is_final;
@@ -137,14 +121,12 @@ export const createDeepgramTranscriber = (options = {}) => {
         isRecording = false;
       });
 
+      // 调用 connect() 启动连接
+      connection.connect();
+
       // 等待连接打开
-      if (connection.readyState !== 'OPEN') {
-        console.log('[Deepgram] 等待连接完成...');
-        await connection.waitForOpen();
-        console.log('[Deepgram] 连接已打开');
-      } else {
-        console.log('[Deepgram] 连接已打开（同步）');
-      }
+      await connection.waitForOpen();
+      console.log('[Deepgram] 连接已打开');
 
       // 开始录音
       isRecording = true;
@@ -161,11 +143,6 @@ export const createDeepgramTranscriber = (options = {}) => {
 
   const cleanup = () => {
     isRecording = false;
-
-    if (processorNode) {
-      try { processorNode.disconnect(); } catch (e) {}
-      processorNode = null;
-    }
 
     if (sourceNode) {
       try { sourceNode.disconnect(); } catch (e) {}
@@ -198,28 +175,21 @@ export const createDeepgramTranscriber = (options = {}) => {
   const getRecordedAudioBlob = () => {
     if (audioChunks.length === 0) return null;
 
-    const sampleRate = audioContext ? audioContext.sampleRate : 16000;
-    console.log('[Deepgram] 生成录音, 采样率:', sampleRate, ' chunks:', audioChunks.length);
+    console.log('[Deepgram] 生成录音, chunks:', audioChunks.length, '采样率:', actualSampleRate);
 
-    const totalLength = audioChunks.reduce((acc, chunk) => acc + chunk.length, 0);
-    const mergedData = new Int16Array(totalLength);
-    let offset = 0;
+    // 计算总采样数
+    let totalSamples = 0;
     for (const chunk of audioChunks) {
-      mergedData.set(chunk, offset);
-      offset += chunk.length;
+      totalSamples += chunk.length;
     }
+    console.log('[Deepgram] 总采样数:', totalSamples);
 
-    return createWavBlob(mergedData, sampleRate);
-  };
-
-  const createWavBlob = (pcmData, sampleRate) => {
+    // 创建 WAV 文件
     const numChannels = 1;
     const bitsPerSample = 16;
     const bytesPerSample = bitsPerSample / 8;
-    const blockAlign = numChannels * bytesPerSample;
-    const byteRate = sampleRate * blockAlign;
-    const dataSize = pcmData.length * bytesPerSample;
-    const buffer = new ArrayBuffer(44 + dataSize);
+    const dataByteLength = totalSamples * bytesPerSample;
+    const buffer = new ArrayBuffer(44 + dataByteLength);
     const view = new DataView(buffer);
 
     const writeString = (offset, str) => {
@@ -228,24 +198,37 @@ export const createDeepgramTranscriber = (options = {}) => {
       }
     };
 
+    // RIFF header
     writeString(0, 'RIFF');
-    view.setUint32(4, 36 + dataSize, true);
+    view.setUint32(4, 36 + dataByteLength, true);
     writeString(8, 'WAVE');
     writeString(12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
-    view.setUint16(22, numChannels, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, byteRate, true);
-    view.setUint16(32, blockAlign, true);
-    view.setUint16(34, bitsPerSample, true);
-    writeString(36, 'data');
-    view.setUint32(40, dataSize, true);
 
-    for (let i = 0; i < pcmData.length; i++) {
-      view.setInt16(44 + i * 2, pcmData[i], true);
+    // fmt chunk
+    view.setUint32(16, 16, true);  // chunk size
+    view.setUint16(20, 1, true);    // PCM format
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, actualSampleRate, true);
+    view.setUint32(28, actualSampleRate * numChannels * bytesPerSample, true);  // byte rate
+    view.setUint16(32, numChannels * bytesPerSample, true);  // block align
+    view.setUint16(34, bitsPerSample, true);
+
+    // data chunk
+    writeString(36, 'data');
+    view.setUint32(40, dataByteLength, true);
+
+    // 写入音频数据
+    let offset = 44;
+    for (const chunk of audioChunks) {
+      for (let i = 0; i < chunk.length; i++) {
+        const s = Math.max(-1, Math.min(1, chunk[i]));
+        const int16 = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        view.setInt16(offset, int16, true);
+        offset += 2;
+      }
     }
 
+    console.log('[Deepgram] WAV 文件大小:', buffer.byteLength, '字节');
     return new Blob([buffer], { type: 'audio/wav' });
   };
 
