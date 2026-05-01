@@ -8,6 +8,10 @@
     <meta name="description" content="ShadowEnglish - 英语听说影子训练工具" />
     <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
     <title>ShadowEnglish - 影子英语</title>
+    <script>
+      // Deepgram SDK 需要的 process polyfill
+      window.process = window.process || { versions: {} };
+    </script>
   </head>
   <body>
     <div id="root"></div>
