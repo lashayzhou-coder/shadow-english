@@ -1,5 +1,5 @@
 // Deepgram API 服务 - 用于语音转文字
-const DEEPGRAM_API_URL = 'https://api.deepgram.com/v1/listen';
+const DEEPGRAM_API_URL = 'wss://api.deepgram.com/v1/listen';
 
 // Deepgram API Key
 const DEEPGRAM_API_KEY = 'bc18dd62cf5ddf66b4cf91a3514d628001847f27';
@@ -62,10 +62,8 @@ export const createDeepgramTranscriber = (options = {}) => {
 
       // 打开 Deepgram WebSocket
       const apiKey = getDeepgramApiKey();
-      socket = new WebSocket(
-        `${DEEPGRAM_API_URL}?punctuate=true&interim=${interim}&profanity_filter=false`,
-        'jwt'
-      );
+      const url = `${DEEPGRAM_API_URL}?punctuate=true&interim=${interim}&profanity_filter=false&key=${apiKey}`;
+      socket = new WebSocket(url);
 
       socket.onopen = () => {
         console.log('Deepgram WebSocket 已连接');
