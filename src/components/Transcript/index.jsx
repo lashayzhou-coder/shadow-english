@@ -23,6 +23,7 @@ const Transcript = ({
   const [sentences, setSentences] = useState([]);
   const [timestamps, setTimestamps] = useState([]);
   const [currentSentenceIndex, setCurrentSentenceIndex] = useState(0);
+  const [isRestoring, setIsRestoring] = useState(false); // 标记是否正在恢复状态
   const [isEditing, setIsEditing] = useState(false);
   const [translations, setTranslations] = useState([]);
   const [textSource, setTextSource] = useState(null);
@@ -51,13 +52,17 @@ const Transcript = ({
         const parsed = JSON.parse(savedState);
         if (parsed.mediaKey === mediaKey && parsed.sentences?.length > 0) {
           console.log('从localStorage恢复字幕状态');
+          setIsRestoring(true); // 标记开始恢复，防止 currentTime effect 覆盖
           setSentences(parsed.sentences);
           setTimestamps(parsed.timestamps || []);
           setTranslations(parsed.translations || []);
           setTranscriptText(parsed.transcriptText || '');
           setTextSource(parsed.textSource);
           setCurrentFileName(parsed.currentFileName);
+          // 恢复当前句子索引（这会在 isRestoring 为 true 时被记录）
           setCurrentSentenceIndex(parsed.currentSentenceIndex || 0);
+          // 恢复完成后清除标记，允许 currentTime effect 正常工作
+          setTimeout(() => setIsRestoring(false), 100);
         }
       } catch (error) {
         console.error('恢复字幕状态失败:', error);
@@ -217,12 +222,14 @@ const Transcript = ({
   }, [duration, sentences, textSource]);
 
   // 更新当前句子索引（根据播放时间）
+  // 注意：恢复状态时跳过此逻辑，避免覆盖已恢复的 currentSentenceIndex
   useEffect(() => {
+    if (isRestoring) return; // 恢复状态时不更新
     if (timestamps.length > 0) {
       const index = findCurrentSentenceIndex(currentTime, timestamps);
       setCurrentSentenceIndex(index);
     }
-  }, [currentTime, timestamps]);
+  }, [currentTime, timestamps, isRestoring]);
 
   // 处理文本提交
   const handleTextSubmit = useCallback(() => {
