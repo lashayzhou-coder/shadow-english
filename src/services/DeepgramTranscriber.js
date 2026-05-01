@@ -23,12 +23,14 @@ export const createDeepgramTranscriber = (options = {}) => {
   const maxReconnectAttempts = 3;
 
   const start = async (stream) => {
+    console.log('[Deepgram] start() 被调用');
+    console.log('[Deepgram] stream:', stream ? '存在' : '不存在');
     mediaStream = stream;
     audioChunks = [];
 
     try {
       const apiKey = getDeepgramApiKey();
-      console.log('[Deepgram] 开始初始化...');
+      console.log('[Deepgram] API Key 长度:', apiKey ? apiKey.length : 0);
 
       // 创建 Web Audio API
       audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -74,9 +76,12 @@ export const createDeepgramTranscriber = (options = {}) => {
               pcmData.byteOffset + pcmData.byteLength
             );
             ws.send(arrayBuffer);
+            console.log('[Deepgram] 已发送音频数据, 大小:', pcmData.length * 2, '字节');
           } catch (e) {
             console.error('[Deepgram] 发送音频失败:', e);
           }
+        } else if (ws) {
+          console.log('[Deepgram] WebSocket 未就绪, readyState:', ws.readyState);
         }
       };
 
