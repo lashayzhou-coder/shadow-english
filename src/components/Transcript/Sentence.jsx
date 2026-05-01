@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './Sentence.css';
 import { splitIntoWords, isWord } from './TextParser';
-import { translateWithGemini } from '../../services/GeminiApi';
+import { translateText } from '../../services/translationApi';
 
 const Sentence = ({
   sentence,
@@ -29,9 +29,9 @@ const Sentence = ({
         setIsTranslating(true);
         try {
           console.log('开始翻译:', sentence.text);
-          const result = await translateWithGemini(sentence.text, 'en', 'zh-CN');
+          const result = await translateText(sentence.text, 'en', 'zh-CN');
           console.log('翻译结果:', result);
-          setTranslation(result);
+          setTranslation(result || '翻译服务暂时不可用');
           if (onTranslationUpdate) {
             onTranslationUpdate(sentenceIndex, result);
           }
