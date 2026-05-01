@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import './ShadowRecording.css';
 import { createDeepgramTranscriber } from '../../services/DeepgramTranscriber';
-import { smartWordDiff, getDiffStats } from '../../utils/diffUtils';
 import { comparePronunciation } from '../../utils/audioCompare';
 import { useAudioAnalysis } from '../../contexts/AudioAnalysisContext';
 
@@ -216,9 +215,11 @@ const ShadowRecording = () => {
       console.log('[Shadow] 原文音频数据:', originalAudioData ? `长度=${originalAudioData.length}` : '无');
     }
 
-    // 进行音频对比评估
+    // 进行音频对比评估（主要得分来源）
     let audioScore = 0;
     let audioFeedback = [];
+    let diffResults = [];
+
     if (originalAudioData && recordedAudioData) {
       console.log('[Shadow] 开始音频对比');
       const analysisResult = comparePronunciation(originalAudioData, recordedAudioData, 48000);
@@ -226,59 +227,39 @@ const ShadowRecording = () => {
       audioFeedback = analysisResult.feedback;
       console.log('[Shadow] 音频评估结果:', analysisResult);
     } else {
-      console.log('[Shadow] 无法获取原文音频，跳过音频对比');
+      console.log('[Shadow] 无法获取原文音频或录音数据');
     }
 
-    // 保留语音转文字的对比结果作为辅助参考
+    // 文字转录结果仅用于显示，不参与评分
     const finalTranscript = transcripts.join(' ').trim();
-    console.log('[Shadow] 评估 - 原文:', currentSentence);
-    console.log('[Shadow] 评估 - 转录:', finalTranscript);
 
     if (currentSentence) {
       const originalWords = currentSentence.split(/\s+/).filter(w => w.length > 0);
 
+      // 显示文字对比参考（但不计入得分）
       if (finalTranscript) {
         const userWords = finalTranscript.split(/\s+/).filter(w => w.length > 0);
-        const diffResults = smartWordDiff(originalWords, userWords);
-        const textStats = getDiffStats(diffResults);
-
-        // 合并音频评估和文字评估的结果
-        // 音频评估权重更高（60%），文字评估作为辅助（40%）
-        const combinedScore = audioScore > 0
-          ? Math.round(audioScore * 0.6 + textStats.score * 0.4)
-          : textStats.score;
-
-        console.log('[Shadow] 综合评估结果:', combinedScore);
-
-        setEvaluationResult({
-          diffResults,
-          stats: {
-            ...textStats,
-            score: combinedScore,
-            audioScore,
-            audioFeedback
-          },
-          transcript: finalTranscript,
-          originalText: currentSentence
-        });
+        diffResults = smartWordDiff(originalWords, userWords);
       } else {
-        // 无转录结果，只使用音频评估
-        setEvaluationResult({
-          diffResults: originalWords.map(word => ({ type: 'missing', original: word })),
-          stats: {
-            correct: 0,
-            wrong: 0,
-            missing: originalWords.length,
-            extra: 0,
-            total: originalWords.length,
-            score: audioScore,
-            audioScore,
-            audioFeedback
-          },
-          transcript: '',
-          originalText: currentSentence
-        });
+        diffResults = originalWords.map(word => ({ type: 'missing', original: word }));
       }
+
+      // 最终得分完全基于音频评估
+      setEvaluationResult({
+        diffResults,
+        stats: {
+          correct: audioScore > 0 ? Math.round(audioScore / 10) : 0,
+          wrong: 0,
+          missing: 0,
+          extra: 0,
+          total: originalWords.length,
+          score: audioScore,
+          audioScore,
+          audioFeedback
+        },
+        transcript: finalTranscript,
+        originalText: currentSentence
+      });
     }
   }, [currentSentence, transcripts, extractAudioData, getCurrentTime]);
 
