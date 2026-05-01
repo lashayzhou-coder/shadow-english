@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { getRecentMedia, addRecentMedia, removeRecentMedia, generateMediaKey } from '../../services/storageService'
+import { useAudioAnalysis } from '../../contexts/AudioAnalysisContext'
 import './AudioPlayer.css'
 
 const AudioPlayer = ({
@@ -38,8 +39,15 @@ const AudioPlayer = ({
   const youtubePlayerRef = useRef(null) // YouTube iframe 引用
   const audioContextRef = useRef(null)
   const gainNodeRef = useRef(null)
+  const mediaElementRef = useRef(null) // 用于音频分析的媒体元素
   const fileObjectUrlRef = useRef(null) // 保存对象 URL 用于清理
   const intervalRef = useRef(null) // 用于 YouTube 进度更新的间隔
+
+  // 使用音频分析上下文
+  const { setAudioRefs, updateCurrentTime } = useAudioAnalysis() || {
+    setAudioRefs: () => {},
+    updateCurrentTime: () => {}
+  };
 
   // 清理旧的对象 URL（防止内存泄漏）
   const cleanupObjectUrl = useCallback(() => {
@@ -294,10 +302,16 @@ const AudioPlayer = ({
     gainNode.gain.value = volume
     gainNodeRef.current = gainNode
 
+    // 设置音频引用到上下文
+    const mediaRef = isVideo ? videoRef.current : audioRef.current;
+    if (mediaRef) {
+      setAudioRefs(mediaRef, audioContext);
+    }
+
     return () => {
       audioContext.close()
     }
-  }, [])
+  }, [isVideo, setAudioRefs])
 
   // 清理 YouTube 间隔
   useEffect(() => {
@@ -387,6 +401,8 @@ const AudioPlayer = ({
       if (onTimeUpdate) {
         onTimeUpdate(newTime)
       }
+      // 更新音频分析上下文中的当前时间
+      updateCurrentTime(newTime);
 
       // 检查是否需要循环 AB 区间
       if (isRepeating && aPoint !== null && bPoint !== null) {
@@ -987,5 +1003,63 @@ const AudioPlayer = ({
     </div>
   )
 }
+
+// 导出音频分析相关函数
+export const getAudioAnalysisFunctions = (audioContextRef, mediaRef) => {
+  return {
+    /**
+     * 提取指定时间范围的音频数据
+     */
+    extractAudioData: async (startTime, duration) => {
+      if (!mediaRef || !audioContextRef?.current) return null;
+
+      try {
+        // 确保媒体已加载
+        if (mediaRef.readyState < 2) {
+          await new Promise((resolve, reject) => {
+            const onCanPlay = () => {
+              mediaRef.removeEventListener('canplay', onCanPlay);
+              mediaRef.removeEventListener('error', onError);
+              resolve();
+            };
+            const onError = () => {
+              mediaRef.removeEventListener('canplay', onCanPlay);
+              mediaRef.removeEventListener('error', onError);
+              reject(new Error('媒体加载失败'));
+            };
+            mediaRef.addEventListener('canplay', onCanPlay);
+            mediaRef.addEventListener('error', onError);
+            setTimeout(() => reject(new Error('超时')), 10000);
+          });
+        }
+
+        // 使用 AudioContext 解码音频
+        const response = await fetch(mediaRef.src);
+        const arrayBuffer = await response.arrayBuffer();
+        const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+
+        // 提取指定范围的音频数据
+        const startSample = Math.floor(startTime * audioBuffer.sampleRate);
+        const endSample = Math.floor((startTime + duration) * audioBuffer.sampleRate);
+        const channelData = audioBuffer.getChannelData(0);
+
+        return channelData.slice(startSample, endSample);
+      } catch (error) {
+        console.error('[AudioPlayer] 提取音频数据失败:', error);
+        return null;
+      }
+    },
+
+    /**
+     * 提取当前播放位置附近的一小段音频用于对比
+     */
+    extractCurrentAudioSnapshot: async (currentTime, duration = 2) => {
+      return getAudioAnalysisFunctions(audioContextRef, mediaRef).extractAudioData(
+        Math.max(0, currentTime - duration / 2),
+        duration
+      );
+    }
+  };
+};
 
 export default AudioPlayer

@@ -2,6 +2,8 @@ import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import './ShadowRecording.css';
 import { createDeepgramTranscriber } from '../../services/DeepgramTranscriber';
 import { smartWordDiff, getDiffStats } from '../../utils/diffUtils';
+import { comparePronunciation } from '../../utils/audioCompare';
+import { useAudioAnalysis } from '../../contexts/AudioAnalysisContext';
 
 // 从 localStorage 读取字幕状态
 const loadTranscriptState = () => {
@@ -82,6 +84,12 @@ const ShadowRecording = () => {
   const transcriberRef = useRef(null);
   const audioChunksRef = useRef([]);  // 存储录音的音频数据
 
+  // 使用音频分析上下文
+  const { extractAudioData, getCurrentTime } = useAudioAnalysis() || {
+    extractAudioData: async () => null,
+    getCurrentTime: () => 0
+  };
+
   const { sentences, currentSentenceIndex } = transcriptState;
   const currentSentence = useMemo(() => {
     if (sentences.length > 0 && currentSentenceIndex < sentences.length) {
@@ -161,7 +169,7 @@ const ShadowRecording = () => {
   }, []);
 
   // 停止跟读
-  const handleStopRecording = useCallback(() => {
+  const handleStopRecording = useCallback(async () => {
     console.log('[Shadow] 停止跟读');
 
     if (transcriberRef.current) {
@@ -183,43 +191,96 @@ const ShadowRecording = () => {
       }
     }
 
-    // 评估
+    // 获取录音的音频数据
+    let recordedAudioData = null;
+    if (transcriberRef.current && audioChunksRef.current && audioChunksRef.current.length > 0) {
+      // 将 audioChunks 合并为单个 Float32Array
+      const totalLength = audioChunksRef.current.reduce((acc, chunk) => acc + chunk.length, 0);
+      recordedAudioData = new Float32Array(totalLength);
+      let offset = 0;
+      for (const chunk of audioChunksRef.current) {
+        recordedAudioData.set(chunk, offset);
+        offset += chunk.length;
+      }
+    }
+
+    // 获取当前播放位置的原文音频数据
+    const currentTime = getCurrentTime();
+    console.log('[Shadow] 当前播放时间:', currentTime);
+
+    let originalAudioData = null;
+    if (currentTime > 0 && extractAudioData) {
+      // 提取当前句子对应时间范围的音频（取当前时间前后1秒）
+      const audioDuration = 2; // 抓取2秒的音频片段
+      originalAudioData = await extractAudioData(Math.max(0, currentTime - 0.5), audioDuration);
+      console.log('[Shadow] 原文音频数据:', originalAudioData ? `长度=${originalAudioData.length}` : '无');
+    }
+
+    // 进行音频对比评估
+    let audioScore = 0;
+    let audioFeedback = [];
+    if (originalAudioData && recordedAudioData) {
+      console.log('[Shadow] 开始音频对比');
+      const analysisResult = comparePronunciation(originalAudioData, recordedAudioData, 48000);
+      audioScore = analysisResult.overallScore;
+      audioFeedback = analysisResult.feedback;
+      console.log('[Shadow] 音频评估结果:', analysisResult);
+    } else {
+      console.log('[Shadow] 无法获取原文音频，跳过音频对比');
+    }
+
+    // 保留语音转文字的对比结果作为辅助参考
     const finalTranscript = transcripts.join(' ').trim();
     console.log('[Shadow] 评估 - 原文:', currentSentence);
     console.log('[Shadow] 评估 - 转录:', finalTranscript);
-    console.log('[Shadow] 评估 - 转录片段数:', transcripts.length);
 
     if (currentSentence) {
       const originalWords = currentSentence.split(/\s+/).filter(w => w.length > 0);
 
       if (finalTranscript) {
         const userWords = finalTranscript.split(/\s+/).filter(w => w.length > 0);
-        console.log('[Shadow] 评估 - 原文词数:', originalWords.length);
-        console.log('[Shadow] 评估 - 用户词数:', userWords.length);
-
         const diffResults = smartWordDiff(originalWords, userWords);
-        const stats = getDiffStats(diffResults);
+        const textStats = getDiffStats(diffResults);
 
-        console.log('[Shadow] 评估结果:', stats);
+        // 合并音频评估和文字评估的结果
+        // 音频评估权重更高（60%），文字评估作为辅助（40%）
+        const combinedScore = audioScore > 0
+          ? Math.round(audioScore * 0.6 + textStats.score * 0.4)
+          : textStats.score;
+
+        console.log('[Shadow] 综合评估结果:', combinedScore);
 
         setEvaluationResult({
           diffResults,
-          stats,
+          stats: {
+            ...textStats,
+            score: combinedScore,
+            audioScore,
+            audioFeedback
+          },
           transcript: finalTranscript,
           originalText: currentSentence
         });
       } else {
-        // 无转录结果
-        console.log('[Shadow] 无转录结果');
+        // 无转录结果，只使用音频评估
         setEvaluationResult({
           diffResults: originalWords.map(word => ({ type: 'missing', original: word })),
-          stats: { correct: 0, wrong: 0, missing: originalWords.length, extra: 0, total: originalWords.length, score: 0 },
+          stats: {
+            correct: 0,
+            wrong: 0,
+            missing: originalWords.length,
+            extra: 0,
+            total: originalWords.length,
+            score: audioScore,
+            audioScore,
+            audioFeedback
+          },
           transcript: '',
           originalText: currentSentence
         });
       }
     }
-  }, [currentSentence, transcripts]);
+  }, [currentSentence, transcripts, extractAudioData, getCurrentTime]);
 
   // 播放录音
   const handlePlayRecording = useCallback(() => {
