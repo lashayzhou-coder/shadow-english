@@ -90,12 +90,12 @@ export const createDeepgramTranscriber = (options = {}) => {
 
       // 连接 Deepgram WebSocket
       const sampleRate = 16000;
-      const url = `wss://api.deepgram.com/v1/listen?punctuate=true&interim_results=${interim}&profanity_filter=false&smart_format=true&model=nova-2&sample_rate=${sampleRate}`;
+      const url = `wss://api.deepgram.com/v1/listen?punctuate=true&interim_results=${interim}&profanity_filter=false&smart_format=true&model=nova-2&sample_rate=${sampleRate}&api_key=${encodeURIComponent(apiKey)}`;
 
       console.log('[Deepgram] 正在连接 WebSocket, URL:', url);
 
-      // 使用 token 子协议传递 API Key
-      ws = new WebSocket(url, ['token', apiKey]);
+      // 直接连接，不使用子协议
+      ws = new WebSocket(url);
 
       // 设置事件处理器（只设置一次，不要覆盖）
       const handleOpen = () => {
