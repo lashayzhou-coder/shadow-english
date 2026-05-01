@@ -1,13 +1,47 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import './DictationMode.css';
-import { useTranscript } from '../../contexts/TranscriptContext';
 import { smartWordDiff, getDiffStats } from '../../utils/diffUtils';
 
-const DictationMode = () => {
-  const { sentences, currentSentenceIndex } = useTranscript();
+// 直接从 localStorage 读取字幕状态
+const loadTranscriptState = () => {
+  try {
+    const savedState = localStorage.getItem('transcript_state');
+    if (savedState) {
+      const parsed = JSON.parse(savedState);
+      return {
+        sentences: parsed.sentences || [],
+        currentSentenceIndex: parsed.currentSentenceIndex || 0,
+        timestamps: parsed.timestamps || [],
+        translations: parsed.translations || []
+      };
+    }
+  } catch (error) {
+    console.error('读取字幕状态失败:', error);
+  }
+  return { sentences: [], currentSentenceIndex: 0, timestamps: [], translations: [] };
+};
 
+const DictationMode = () => {
   const [userInput, setUserInput] = useState('');
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [transcriptState, setTranscriptState] = useState(loadTranscriptState);
+
+  // 监听字幕状态变化
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setTranscriptState(loadTranscriptState());
+    };
+
+    // 定期检查字幕状态更新
+    const interval = setInterval(handleStorageChange, 1000);
+
+    // 初始加载
+    handleStorageChange();
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const { sentences, currentSentenceIndex } = transcriptState;
 
   // 当前句子（只在提交后显示）
   const currentSentence = useMemo(() => {
@@ -76,6 +110,16 @@ const DictationMode = () => {
 
   // 判断是否有字幕可供参考
   const hasSubtitles = sentences.length > 0;
+
+  // 调试日志
+  useEffect(() => {
+    console.log('DictationMode - 字幕状态:', {
+      sentencesLength: sentences.length,
+      currentSentenceIndex,
+      hasSubtitles,
+      hasSubmitted
+    });
+  }, [sentences.length, currentSentenceIndex, hasSubtitles, hasSubmitted]);
 
   return (
     <div className="dictation-container">
