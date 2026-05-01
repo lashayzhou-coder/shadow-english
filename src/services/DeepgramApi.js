@@ -1,5 +1,5 @@
 // Deepgram API 服务 - 用于语音转文字
-const DEEPGRAM_API_URL = 'wss://api.deepgram.com/v1/listen';
+import { DeepgramClient } from '@deepgram/sdk';
 
 // Deepgram API Key
 const DEEPGRAM_API_KEY = 'bc18dd62cf5ddf66b4cf91a3514d628001847f27';
@@ -19,11 +19,10 @@ export const setDeepgramApiKey = (key) => {
 };
 
 /**
- * 使用 Deepgram 进行实时语音转文字
+ * 使用 Deepgram SDK 进行实时语音转文字
  * @param {MediaStream} stream - 媒体流
- * @param {Function} onTranscript - 转录结果回调
- * @param {Function} onError - 错误回调
- * @returns {Object} - 返回 { stop, isRecording }
+ * @param {Object} options - 配置选项
+ * @returns {Object} - 返回 { stop, isRecording, analyser }
  */
 export const createDeepgramTranscriber = (options = {}) => {
   const {
@@ -34,17 +33,20 @@ export const createDeepgramTranscriber = (options = {}) => {
     interim = false
   } = options;
 
-  let socket = null;
+  let connection = null;
   let isRecording = false;
   let audioContext = null;
   let analyser = null;
-  let mediaRecorder = null;
   let stream = null;
+  let mediaRecorder = null;
 
   const start = async (mediaStream) => {
     stream = mediaStream;
 
     try {
+      const apiKey = getDeepgramApiKey();
+      const deepgram = new DeepgramClient(apiKey);
+
       // 创建 Web Audio API 用于波形可视化
       audioContext = new (window.AudioContext || window.webkitAudioContext)();
       analyser = audioContext.createAnalyser();
@@ -53,67 +55,59 @@ export const createDeepgramTranscriber = (options = {}) => {
       const source = audioContext.createMediaStreamSource(mediaStream);
       source.connect(analyser);
 
-      // 创建 MediaRecorder
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm')
-        ? 'audio/webm'
-        : 'audio/mp4';
+      // 创建 Deepgram 实时连接
+      const listenClient = deepgram.listen;
 
-      mediaRecorder = new MediaRecorder(mediaStream, { mimeType });
+      // 使用 v1 的 connect 方法
+      connection = await listenClient.v1.connect({
+        punctuate: true,
+        interim_results: interim,
+        profanity_filter: false,
+        smart_format: true,
+        model: 'nova-2'
+      });
 
-      // 打开 Deepgram WebSocket
-      const apiKey = getDeepgramApiKey();
-      const url = `${DEEPGRAM_API_URL}?punctuate=true&interim=${interim}&profanity_filter=false&key=${apiKey}`;
-      socket = new WebSocket(url);
-
-      socket.onopen = () => {
-        console.log('Deepgram WebSocket 已连接');
+      // 设置事件处理器
+      connection.on('open', () => {
+        console.log('Deepgram 连接已打开');
         isRecording = true;
 
-        // 当 MediaRecorder 有数据时发送到 Deepgram
+        // 开始录音并发送音频数据
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+        mediaRecorder = new MediaRecorder(mediaStream, { mimeType });
+
         mediaRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0 && socket && socket.readyState === WebSocket.OPEN) {
-            socket.send(event.data);
+          if (event.data.size > 0 && connection) {
+            connection.sendMedia(event.data);
           }
         };
 
-        // 开始录音
-        mediaRecorder.start(250); // 每 250ms 发送一次数据
-      };
+        mediaRecorder.start(250);
+      });
 
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
+      connection.on('transcript', (data) => {
+        const transcript = data.channel?.alternatives?.[0]?.transcript;
+        const is_final = data.is_final;
 
-          // 处理转录结果
-          if (data.channel?.alternatives?.[0]?.transcript) {
-            const transcript = data.channel.alternatives[0].transcript;
-            const is_final = data.is_final;
-
-            onTranscript({
-              transcript,
-              is_final,
-              confidence: data.channel?.alternatives?.[0]?.confidence || 1
-            });
-          }
-
-          // 检测语音开始/结束
-          if (data.speech_final) {
-            onSpeechEnd();
-          }
-        } catch (error) {
-          console.error('解析 Deepgram 响应失败:', error);
+        if (transcript) {
+          onTranscript({
+            transcript,
+            is_final,
+            confidence: data.channel?.alternatives?.[0]?.confidence || 1
+          });
         }
-      };
+      });
 
-      socket.onerror = (error) => {
-        console.error('Deepgram WebSocket 错误:', error);
-        onError(error);
-      };
-
-      socket.onclose = () => {
-        console.log('Deepgram WebSocket 已关闭');
+      connection.on('close', () => {
+        console.log('Deepgram 连接已关闭');
         isRecording = false;
-      };
+      });
+
+      connection.on('error', (error) => {
+        console.error('Deepgram 连接错误:', error);
+        onError(error);
+        isRecording = false;
+      });
 
       return { audioContext, analyser };
     } catch (error) {
@@ -130,8 +124,9 @@ export const createDeepgramTranscriber = (options = {}) => {
       mediaRecorder.stop();
     }
 
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.close();
+    if (connection) {
+      connection.close();
+      connection = null;
     }
 
     if (audioContext && audioContext.state !== 'closed') {
