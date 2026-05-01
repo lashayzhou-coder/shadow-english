@@ -19,7 +19,7 @@ export const createDeepgramTranscriber = (options = {}) => {
   let processorNode = null;
   let mediaStream = null;
   let audioChunks = [];
-  let ws = null;
+  let connection = null;
   let reconnectAttempts = 0;
   const maxReconnectAttempts = 3;
 
