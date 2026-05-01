@@ -631,8 +631,13 @@ const AudioPlayer = ({
         return
       }
 
-      // 空格键 - 播放/暂停
+      // 空格键 - 取消默认滚动
       if (e.code === 'Space') {
+        // 不再作为播放/暂停键
+      }
+
+      // P 键 - 播放/暂停
+      if (e.code === 'KeyP') {
         e.preventDefault()
         togglePlayPause()
       }
