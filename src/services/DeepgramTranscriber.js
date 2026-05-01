@@ -97,15 +97,15 @@ export const createDeepgramTranscriber = (options = {}) => {
       // 使用 token 子协议传递 API Key
       ws = new WebSocket(url, ['token', apiKey]);
 
-      // 设置事件处理器
-      ws.onopen = () => {
+      // 设置事件处理器（只设置一次，不要覆盖）
+      const handleOpen = () => {
         console.log('[Deepgram] WebSocket 已连接');
         isRecording = true;
         reconnectAttempts = 0;
         onSpeechStart();
       };
 
-      ws.onmessage = (event) => {
+      const handleMessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           const transcript = data.channel?.alternatives?.[0]?.transcript;
@@ -124,17 +124,22 @@ export const createDeepgramTranscriber = (options = {}) => {
         }
       };
 
-      ws.onclose = (event) => {
+      const handleClose = (event) => {
         console.log('[Deepgram] WebSocket 已关闭', event.code, event.reason);
         isRecording = false;
         onSpeechEnd();
       };
 
-      ws.onerror = (error) => {
+      const handleError = (error) => {
         console.error('[Deepgram] WebSocket 错误:', error);
         onError(error);
         isRecording = false;
       };
+
+      ws.onopen = handleOpen;
+      ws.onmessage = handleMessage;
+      ws.onclose = handleClose;
+      ws.onerror = handleError;
 
       // 等待连接打开
       const connectionPromise = new Promise((resolve, reject) => {
@@ -151,26 +156,13 @@ export const createDeepgramTranscriber = (options = {}) => {
           return;
         }
 
-        const onOpenHandler = () => {
-          console.log('[Deepgram] 连接已打开');
-          ws.removeEventListener('open', onOpenHandler);
-          ws.removeEventListener('error', onErrorHandler);
-          resolve();
-        };
-        const onErrorHandler = (err) => {
-          console.error('[Deepgram] 连接错误:', err);
-          ws.removeEventListener('open', onOpenHandler);
-          ws.removeEventListener('error', onErrorHandler);
-          reject(err);
-        };
-        ws.addEventListener('open', onOpenHandler);
-        ws.addEventListener('error', onErrorHandler);
-
         // 超时
-        setTimeout(() => {
-          ws.removeEventListener('open', onOpenHandler);
-          ws.removeEventListener('error', onErrorHandler);
-          reject(new Error('连接超时 (10s)'));
+        const timeout = setTimeout(() => {
+          clearTimeout(timeout);
+          if (ws.readyState !== WebSocket.OPEN) {
+            console.log('[Deepgram] 连接超时');
+            reject(new Error('连接超时 (10s)'));
+          }
         }, 10000);
       });
 
