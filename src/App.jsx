@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import AudioPlayer from './components/AudioPlayer'
 import Transcript from './components/Transcript'
 import DictationMode from './components/DictationMode'
+import ShadowRecording from './components/ShadowRecording'
 import WordCard from './components/WordCard'
 import Settings from './components/Settings'
 import VocabularyList from './components/VocabularyList'
@@ -118,17 +119,7 @@ function App() {
         )}
 
         {activeTab === 'shadow' && (
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">🎙️ 跟读模式</h2>
-            <div className="bg-gray-100 dark:bg-gray-800 p-8 rounded-lg text-center">
-              <p className="text-gray-600 dark:text-gray-400">
-                跟读模式即将推出！
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
-                支持录音和发音评估
-              </p>
-            </div>
-          </div>
+          <ShadowRecording />
         )}
 
         {activeTab === 'vocab' && (
