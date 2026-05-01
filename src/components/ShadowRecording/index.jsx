@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import './ShadowRecording.css';
-import { createDeepgramTranscriber } from '../../services/DeepgramApi';
+import { createDeepgramTranscriber } from '../../services/DeepgramTranscriber';
 import { smartWordDiff, getDiffStats } from '../../utils/diffUtils';
 
 // 从 localStorage 读取字幕状态
