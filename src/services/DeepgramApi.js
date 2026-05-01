@@ -93,6 +93,10 @@ export const createDeepgramTranscriber = (options = {}) => {
         }
       };
 
+      // 提前连接音频节点，确保音频能正常流入处理器
+      sourceNode.connect(processorNode);
+      processorNode.connect(audioContext.destination);
+
       // 注意：不要在这里提前连接 processorNode，等连接打开后再连接
 
       // 创建 Deepgram 连接
@@ -102,14 +106,24 @@ export const createDeepgramTranscriber = (options = {}) => {
         profanity_filter: false,
         smart_format: true,
         model: 'nova-2',
-        sample_rate: 16000, // Deepgram 推荐 16kHz
+        sample_rate: 16000,
         channels: 1,
         encoding: 'linear16'
+      }).catch(err => {
+        console.error('[Deepgram] 连接创建失败:', err);
+        throw err;
       });
 
+      console.log('[Deepgram] 连接对象已创建, readyState:', connection.readyState);
+
       // 等待连接真正打开后再开始录音
-      await connection.waitForOpen();
-      console.log('[Deepgram] 连接已打开');
+      try {
+        await connection.waitForOpen();
+        console.log('[Deepgram] 连接已打开');
+      } catch (err) {
+        console.error('[Deepgram] 等待连接打开失败:', err);
+        throw err;
+      }
 
       // 设置事件处理器（在连接打开后）
       connection.on('transcript', (data) => {
@@ -142,10 +156,6 @@ export const createDeepgramTranscriber = (options = {}) => {
       isRecording = true;
       audioChunks = [];
       onSpeechStart();
-
-      // 连接音频节点（在连接打开之后）
-      sourceNode.connect(processorNode);
-      processorNode.connect(audioContext.destination);
 
       return { audioContext, analyser };
     } catch (error) {
