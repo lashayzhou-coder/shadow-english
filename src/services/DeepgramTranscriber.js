@@ -16,21 +16,24 @@ export const createDeepgramTranscriber = (options = {}) => {
   let audioContext = null;
   let analyser = null;
   let sourceNode = null;
+  let scriptProcessor = null;
   let mediaStream = null;
-  let audioChunks = [];  // 存储 Float32Array chunks (原始采样数据)
   let connection = null;
-  let actualSampleRate = 48000;  // 默认浏览器采样率
+  let actualSampleRate = 48000;
+
+  // 存储每个 chunk 的元数据，用于调试
+  const chunkInfo = [];
 
   const start = async (stream) => {
     console.log('[Deepgram] start() 被调用');
     mediaStream = stream;
-    audioChunks = [];
+    chunkInfo.length = 0;
 
     try {
       const apiKey = getDeepgramApiKey();
       console.log('[Deepgram] API Key 长度:', apiKey ? apiKey.length : 0);
 
-      // 创建 Web Audio API - 用于波形分析
+      // 创建 Web Audio API
       audioContext = new (window.AudioContext || window.webkitAudioContext)();
       actualSampleRate = audioContext.sampleRate;
       console.log('[Deepgram] AudioContext sampleRate:', actualSampleRate);
@@ -43,10 +46,14 @@ export const createDeepgramTranscriber = (options = {}) => {
       sourceNode = audioContext.createMediaStreamSource(stream);
       sourceNode.connect(analyser);
 
-      // 创建 ScriptProcessor 来捕获 PCM 数据
-      const scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+      // 创建 ScriptProcessor
+      const bufferSize = 4096;
+      scriptProcessor = audioContext.createScriptProcessor(bufferSize, 1, 1);
       sourceNode.connect(scriptProcessor);
       scriptProcessor.connect(audioContext.destination);
+
+      // 存储所有音频数据（作为 Float32 数组的副本）
+      const audioChunks = [];
 
       scriptProcessor.onaudioprocess = (event) => {
         if (!isRecording) return;
@@ -54,25 +61,43 @@ export const createDeepgramTranscriber = (options = {}) => {
         const inputBuffer = event.inputBuffer;
         const channelData = inputBuffer.getChannelData(0);
 
-        // 创建 Float32Array 副本并保存
-        const audioData = new Float32Array(channelData.length);
-        audioData.set(channelData);
-        audioChunks.push(audioData);
+        // 计算这一帧的统计信息用于调试
+        let min = Infinity, max = -Infinity, sum = 0;
+        for (let i = 0; i < channelData.length; i++) {
+          const v = channelData[i];
+          if (v < min) min = v;
+          if (v > max) max = v;
+          sum += v;
+        }
+        const avg = sum / channelData.length;
 
-        // 转换为 Int16Array PCM 并发送
-        const pcmData = new Int16Array(audioData.length);
-        for (let i = 0; i < audioData.length; i++) {
-          const s = audioData[i];
-          pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        // 创建副本并保存
+        const audioCopy = new Float32Array(channelData);
+        audioChunks.push(audioCopy);
+
+        // 记录 chunk 信息
+        chunkInfo.push({
+          index: chunkInfo.length,
+          min, max, avg,
+          length: channelData.length
+        });
+
+        console.log(`[Deepgram] Chunk ${chunkInfo.length}: min=${min.toFixed(4)}, max=${max.toFixed(4)}, avg=${avg.toFixed(4)}`);
+
+        // 转换为 Int16Array PCM
+        const pcmData = new Int16Array(channelData.length);
+        for (let i = 0; i < channelData.length; i++) {
+          // 不再 clamp，直接转换
+          const s = channelData[i];
+          pcmData[i] = s < 0 ? s * 32768 : s * 32767;
         }
 
         // 发送音频到 Deepgram
         if (connection && isRecording) {
           try {
-            // 创建 PCM 数据的副本再发送
-            const sendBuffer = new ArrayBuffer(pcmData.length * 2);
-            const sendView = new Int16Array(sendBuffer);
-            sendView.set(pcmData);
+            // 每次发送都创建新的 ArrayBuffer 副本
+            const sendBuffer = new ArrayBuffer(pcmData.byteLength);
+            new Uint8Array(sendBuffer).set(new Uint8Array(pcmData.buffer, pcmData.byteOffset, pcmData.byteLength));
             connection.sendMedia(sendBuffer);
           } catch (e) {
             console.error('[Deepgram] 发送音频失败:', e);
@@ -80,7 +105,7 @@ export const createDeepgramTranscriber = (options = {}) => {
         }
       };
 
-      // 创建 Deepgram 连接（使用 SDK）
+      // 创建 Deepgram 连接
       console.log('[Deepgram] 创建 Deepgram 连接...');
       const deepgram = new DeepgramClient({ apiKey });
 
@@ -97,7 +122,6 @@ export const createDeepgramTranscriber = (options = {}) => {
 
       console.log('[Deepgram] 连接对象已创建');
 
-      // 设置事件处理器
       connection.on('transcript', (data) => {
         const transcript = data.channel?.alternatives?.[0]?.transcript;
         const is_final = data.is_final;
@@ -124,18 +148,20 @@ export const createDeepgramTranscriber = (options = {}) => {
         isRecording = false;
       });
 
-      // 调用 connect() 启动连接
       connection.connect();
-
-      // 等待连接打开
       await connection.waitForOpen();
       console.log('[Deepgram] 连接已打开');
 
-      // 开始录音
       isRecording = true;
       onSpeechStart();
 
-      return { audioContext, analyser };
+      // 返回访问函数和清理函数
+      return {
+        audioContext,
+        analyser,
+        getAudioChunks: () => audioChunks,
+        getChunkInfo: () => [...chunkInfo]
+      };
     } catch (error) {
       console.error('[Deepgram] 启动失败:', error);
       cleanup();
@@ -146,6 +172,11 @@ export const createDeepgramTranscriber = (options = {}) => {
 
   const cleanup = () => {
     isRecording = false;
+
+    if (scriptProcessor) {
+      try { scriptProcessor.disconnect(); } catch (e) {}
+      scriptProcessor = null;
+    }
 
     if (sourceNode) {
       try { sourceNode.disconnect(); } catch (e) {}
@@ -161,10 +192,12 @@ export const createDeepgramTranscriber = (options = {}) => {
       try { connection.close(); } catch (e) {}
       connection = null;
     }
+
+    chunkInfo.length = 0;
   };
 
   const stop = () => {
-    console.log('[Deepgram] 停止录音');
+    console.log('[Deepgram] 停止录音, chunkInfo:', chunkInfo.length, 'chunks');
     cleanup();
 
     if (mediaStream) {
@@ -175,19 +208,19 @@ export const createDeepgramTranscriber = (options = {}) => {
     return null;
   };
 
-  const getRecordedAudioBlob = () => {
+  // 导出 getRecordedAudioBlob 给外部调用
+  // 注意：需要传入 audioChunks 和 sampleRate
+  const createRecordedBlob = (audioChunks, sampleRate) => {
     if (audioChunks.length === 0) return null;
 
-    console.log('[Deepgram] 生成录音, chunks:', audioChunks.length, '采样率:', actualSampleRate);
+    console.log('[Deepgram] 生成录音, chunks:', audioChunks.length, '采样率:', sampleRate);
 
-    // 计算总采样数
     let totalSamples = 0;
     for (const chunk of audioChunks) {
       totalSamples += chunk.length;
     }
     console.log('[Deepgram] 总采样数:', totalSamples);
 
-    // 创建 WAV 文件
     const numChannels = 1;
     const bitsPerSample = 16;
     const bytesPerSample = bitsPerSample / 8;
@@ -208,12 +241,12 @@ export const createDeepgramTranscriber = (options = {}) => {
     writeString(12, 'fmt ');
 
     // fmt chunk
-    view.setUint32(16, 16, true);  // chunk size
-    view.setUint16(20, 1, true);    // PCM format
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
     view.setUint16(22, numChannels, true);
-    view.setUint32(24, actualSampleRate, true);
-    view.setUint32(28, actualSampleRate * numChannels * bytesPerSample, true);  // byte rate
-    view.setUint16(32, numChannels * bytesPerSample, true);  // block align
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * numChannels * bytesPerSample, true);
+    view.setUint16(32, numChannels * bytesPerSample, true);
     view.setUint16(34, bitsPerSample, true);
 
     // data chunk
@@ -224,8 +257,9 @@ export const createDeepgramTranscriber = (options = {}) => {
     let offset = 44;
     for (const chunk of audioChunks) {
       for (let i = 0; i < chunk.length; i++) {
-        const s = Math.max(-1, Math.min(1, chunk[i]));
-        const int16 = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        // 直接转换，不 clamp
+        const s = chunk[i];
+        const int16 = s < 0 ? s * 32768 : s * 32767;
         view.setInt16(offset, int16, true);
         offset += 2;
       }
@@ -238,8 +272,9 @@ export const createDeepgramTranscriber = (options = {}) => {
   return {
     start,
     stop,
-    getRecordedAudioBlob,
+    createRecordedBlob,
     getIsRecording: () => isRecording,
-    getAnalyser: () => analyser
+    getAnalyser: () => analyser,
+    getSampleRate: () => actualSampleRate
   };
 };

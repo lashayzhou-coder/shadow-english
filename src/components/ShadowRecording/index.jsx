@@ -80,6 +80,7 @@ const ShadowRecording = () => {
   const canvasRef = useRef(null);
   const audioRef = useRef(null);
   const transcriberRef = useRef(null);
+  const audioChunksRef = useRef([]);  // 存储录音的音频数据
 
   const { sentences, currentSentenceIndex } = transcriptState;
   const currentSentence = useMemo(() => {
@@ -139,11 +140,11 @@ const ShadowRecording = () => {
         }
       });
 
-      // 启动转录（返回 analyser）
+      // 启动转录
       console.log('[Shadow] 启动转录...');
-      const { audioContext, analyser: audioAnalyser } = await transcriberRef.current.start(stream);
-      console.log('[Shadow] 转录已启动, analyser:', audioAnalyser ? '存在' : '不存在');
-      setAnalyser(audioAnalyser);
+      const result = await transcriberRef.current.start(stream);
+      audioChunksRef.current = result.getAudioChunks();
+      setAnalyser(result.analyser);
 
       setIsRecording(true);
       console.log('[Shadow] isRecording 已设置为 true');
@@ -170,8 +171,11 @@ const ShadowRecording = () => {
     setAnalyser(null);
 
     // 获取录音数据
-    if (transcriberRef.current) {
-      const blob = transcriberRef.current.getRecordedAudioBlob();
+    if (transcriberRef.current && audioChunksRef.current) {
+      const blob = transcriberRef.current.createRecordedBlob(
+        audioChunksRef.current,
+        transcriberRef.current.getSampleRate()
+      );
       if (blob) {
         const url = URL.createObjectURL(blob);
         setRecordedUrl(url);
