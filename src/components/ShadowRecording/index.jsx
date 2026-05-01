@@ -77,6 +77,7 @@ const ShadowRecording = () => {
   const [transcriptState, setTranscriptState] = useState(loadTranscriptState);
   const [evaluationResult, setEvaluationResult] = useState(null);
   const [error, setError] = useState(null);
+  const [allTranscripts, setAllTranscripts] = useState(''); // 累积所有转录结果
 
   const canvasRef = useRef(null);
   const audioRef = useRef(null);
@@ -109,6 +110,7 @@ const ShadowRecording = () => {
       setTranscripts([]);
       setCurrentTranscript('');
       setEvaluationResult(null);
+      setAllTranscripts('');
       audioChunksRef.current = [];
 
       // 请求麦克风权限
@@ -144,10 +146,14 @@ const ShadowRecording = () => {
       transcriberRef.current = createDeepgramTranscriber({
         onTranscript: ({ transcript, is_final }) => {
           console.log('转录结果:', transcript, 'is_final:', is_final);
-          if (is_final) {
-            setTranscripts(prev => [...prev, transcript]);
+          if (is_final && transcript) {
+            setTranscripts(prev => {
+              const newTranscripts = [...prev, transcript];
+              setAllTranscripts(newTranscripts.join(' '));
+              return newTranscripts;
+            });
             setCurrentTranscript('');
-          } else {
+          } else if (transcript) {
             setCurrentTranscript(transcript);
           }
         },
@@ -192,22 +198,49 @@ const ShadowRecording = () => {
     setIsRecording(false);
     setAnalyser(null);
 
-    // 执行发音评估
-    if (currentSentence && transcripts.length > 0) {
-      const fullTranscript = transcripts.join(' ');
-      const userWords = fullTranscript.trim().split(/\s+/).filter(w => w.length > 0);
+    // 评估：优先使用 allTranscripts（所有累积的转录结果），其次是 transcripts
+    const finalTranscript = allTranscripts || transcripts.join(' ');
+    console.log('评估 - currentSentence:', currentSentence);
+    console.log('评估 - finalTranscript:', finalTranscript);
+    console.log('评估 - transcripts count:', transcripts.length);
+
+    if (currentSentence && finalTranscript.trim()) {
+      const userWords = finalTranscript.trim().split(/\s+/).filter(w => w.length > 0);
       const originalWords = currentSentence.split(/\s+/).filter(w => w.length > 0);
 
-      const diffResults = smartWordDiff(originalWords, userWords);
-      const stats = getDiffStats(diffResults);
+      console.log('评估 - userWords:', userWords);
+      console.log('评估 - originalWords:', originalWords);
 
+      if (userWords.length > 0 && originalWords.length > 0) {
+        const diffResults = smartWordDiff(originalWords, userWords);
+        const stats = getDiffStats(diffResults);
+
+        console.log('评估结果 - diffResults:', diffResults);
+        console.log('评估结果 - stats:', stats);
+
+        setEvaluationResult({
+          diffResults,
+          stats,
+          transcript: finalTranscript
+        });
+      } else if (userWords.length === 0) {
+        // 用户没有输入任何词
+        setEvaluationResult({
+          diffResults: originalWords.map(word => ({ type: 'missing', original: word })),
+          stats: { correct: 0, wrong: 0, missing: originalWords.length, extra: 0, total: originalWords.length, score: 0 },
+          transcript: ''
+        });
+      }
+    } else if (currentSentence && !finalTranscript.trim()) {
+      // 有原文但没有转录结果
+      const originalWords = currentSentence.split(/\s+/).filter(w => w.length > 0);
       setEvaluationResult({
-        diffResults,
-        stats,
-        transcript: fullTranscript
+        diffResults: originalWords.map(word => ({ type: 'missing', original: word })),
+        stats: { correct: 0, wrong: 0, missing: originalWords.length, extra: 0, total: originalWords.length, score: 0 },
+        transcript: ''
       });
     }
-  }, [currentSentence, transcripts]);
+  }, [currentSentence, transcripts, allTranscripts]);
 
   // 播放录音
   const handlePlayRecording = useCallback(() => {
@@ -293,7 +326,7 @@ const ShadowRecording = () => {
       {/* 实时转录显示 */}
       {(currentTranscript || transcripts.length > 0) && (
         <div className="transcript-section">
-          <h3>转录结果</h3>
+          <h3>🔤 转录结果</h3>
           <div className="transcript-text">
             {transcripts.map((t, i) => (
               <span key={i}>{t} </span>
@@ -302,6 +335,9 @@ const ShadowRecording = () => {
               <span className="interim">{currentTranscript}</span>
             )}
           </div>
+          {!currentTranscript && transcripts.length === 0 && (
+            <p className="text-gray-500 text-sm mt-2">正在识别语音...</p>
+          )}
         </div>
       )}
 
