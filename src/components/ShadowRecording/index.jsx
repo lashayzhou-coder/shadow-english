@@ -150,8 +150,8 @@ const ShadowRecording = () => {
       console.log('[Shadow] isRecording 已设置为 true');
 
       // 开始绘制波形
-      if (canvasRef.current && audioAnalyser) {
-        drawWaveform(audioAnalyser, canvasRef);
+      if (canvasRef.current && result.analyser) {
+        drawWaveform(result.analyser, canvasRef);
       }
     } catch (err) {
       console.error('[Shadow] 启动跟读失败:', err);
