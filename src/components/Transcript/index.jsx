@@ -102,7 +102,7 @@ const Transcript = ({
     }
   }, [audioSource, sourceType]);
 
-  // 自动加载字幕
+  // 自动加载字幕（仅当没有已加载的字幕时才执行）
   const autoLoadTranscript = useCallback(async () => {
     console.log('autoLoadTranscript called');
 
@@ -110,6 +110,12 @@ const Transcript = ({
     const autoTranscript = localStorage.getItem('auto_generate_transcript') === 'true';
     console.log('Auto transcript enabled:', autoTranscript);
     if (!autoTranscript) return;
+
+    // 如果已经有字幕数据（可能是恢复的），不再覆盖
+    if (sentences.length > 0) {
+      console.log('已有字幕数据，跳过自动加载');
+      return;
+    }
 
     setIsLoading(true);
     setError('');
@@ -149,7 +155,7 @@ const Transcript = ({
     } finally {
       setIsLoading(false);
     }
-  }, [audioSource, sourceType]);
+  }, [audioSource, sourceType, sentences.length]);
 
   // 处理字幕文件格式
   const processSubtitles = useCallback((subtitles) => {
