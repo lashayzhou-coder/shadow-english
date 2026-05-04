@@ -8,6 +8,8 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'prompt',
+      scope: '/shadow-english/',
+      base: '/shadow-english/',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
         name: 'ShadowEnglish',
@@ -21,19 +23,19 @@ export default defineConfig({
         start_url: '/shadow-english/',
         icons: [
           {
-            src: 'icons/icon-192x192.png',
+            src: 'icons/icon-192x192.svg',
             sizes: '192x192',
-            type: 'image/png'
+            type: 'image/svg+xml'
           },
           {
-            src: 'icons/icon-512x512.png',
+            src: 'icons/icon-192x192.svg',
             sizes: '512x512',
-            type: 'image/png'
+            type: 'image/svg+xml'
           },
           {
-            src: 'icons/icon-512x512.png',
+            src: 'icons/icon-192x192.svg',
             sizes: '512x512',
-            type: 'image/png',
+            type: 'image/svg+xml',
             purpose: 'any maskable'
           }
         ],
@@ -43,14 +45,14 @@ export default defineConfig({
             short_name: '听写',
             description: '快速进入听写模式',
             url: '/shadow-english/?mode=dictation',
-            icons: [{ src: 'icons/icon-192x192.png', sizes: '192x192' }]
+            icons: [{ src: 'icons/icon-192x192.svg', sizes: '192x192' }]
           },
           {
             name: '打开生词本',
             short_name: '生词本',
             description: '快速打开生词本',
             url: '/shadow-english/?mode=vocab',
-            icons: [{ src: 'icons/icon-192x192.png', sizes: '192x192' }]
+            icons: [{ src: 'icons/icon-192x192.svg', sizes: '192x192' }]
           }
         ]
       },
