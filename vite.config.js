@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  base: '/shadow-english/',
   plugins: [
     react(),
     VitePWA({
@@ -16,8 +17,8 @@ export default defineConfig({
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
-        scope: '/',
-        start_url: '/',
+        scope: '/shadow-english/',
+        start_url: '/shadow-english/',
         icons: [
           {
             src: 'icons/icon-192x192.png',
@@ -41,14 +42,14 @@ export default defineConfig({
             name: '开始听写',
             short_name: '听写',
             description: '快速进入听写模式',
-            url: '/?mode=dictation',
+            url: '/shadow-english/?mode=dictation',
             icons: [{ src: 'icons/icon-192x192.png', sizes: '192x192' }]
           },
           {
             name: '打开生词本',
             short_name: '生词本',
             description: '快速打开生词本',
-            url: '/?mode=vocab',
+            url: '/shadow-english/?mode=vocab',
             icons: [{ src: 'icons/icon-192x192.png', sizes: '192x192' }]
           }
         ]
